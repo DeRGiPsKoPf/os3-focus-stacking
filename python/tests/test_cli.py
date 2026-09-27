@@ -97,3 +97,37 @@ def test_compare_command_pass_and_fail(scan_dir, tmp_path):
 def test_compare_command_reports_error_on_missing_file(tmp_path):
     exit_code = main(["compare", str(tmp_path / "a.jpg"), str(tmp_path / "b.jpg")])
     assert exit_code == 1
+
+
+def test_stack_command_with_tiling(scan_dir, tmp_path):
+    output_dir = tmp_path / "out"
+
+    exit_code = main([
+        "stack", str(scan_dir),
+        "--output-dir", str(output_dir),
+        "--tile-width", "64", "--tile-height", "64", "--tile-overlap", "16",
+    ])
+
+    assert exit_code == 0
+    assert (output_dir / "stacked_scan00_000.jpg").exists()
+
+
+def test_stack_command_rejects_partial_tile_args(scan_dir, tmp_path):
+    exit_code = main([
+        "stack", str(scan_dir),
+        "--output-dir", str(tmp_path / "out"),
+        "--tile-width", "64", "--tile-height", "64",
+        # --tile-overlap missing
+    ])
+
+    assert exit_code == 1
+
+
+def test_stack_command_rejects_invalid_tile_size(scan_dir, tmp_path):
+    exit_code = main([
+        "stack", str(scan_dir),
+        "--output-dir", str(tmp_path / "out"),
+        "--tile-width", "63", "--tile-height", "64", "--tile-overlap", "16",
+    ])
+
+    assert exit_code == 1

@@ -167,16 +167,12 @@ a single, clearly scoped building block.
 - Write results back to the Pi? OS3 has no endpoint for that. Not a
   priority — results stay on the PC/chosen storage target. An additive PR
   against OS3 would be possible, but is its own, separate undertaking.
-- **HTTPS earlier than Step 5?** (raised in Step 0, see the HTTPS section.)
-  Check the browser's address bar against the maintainer's own Pi: `http://`
-  or `https://`? (The firmware repo itself is fully open source; the actual
-  nginx site config ships in a separate `openscan3-system-config` package
-  whose repo we didn't locate — not established as non-public, just not
-  found — so checking the live device is simpler than searching further.) If
-  it's HTTP: (a) keep the plan — until HTTPS exists, the Pi-served tab offers
-  downloads only and no deletion, full features during development via the
-  localhost dev server; or (b) pull the HTTPS PR forward to Step 3a. Decide
-  before Step 3.
+- ~~HTTPS earlier than Step 5?~~ **Resolved 2026-09-27:** the maintainer's Pi
+  already serves the UI over `https://`. The concern raised in Step 0 (several
+  browser APIs need a secure context) doesn't block anything — no HTTPS PR
+  needed before Step 5 after all, and no downloads-only fallback on the
+  Pi-served page. The HTTPS section above (self-signed cert, Step 5 PR
+  timing) still applies to whoever doesn't already have this.
 - How the calibration pre-scan gets its scan settings and is started (own
   settings form in the Stacking tab vs. a touch point in the Scan page; main
   scan chained via OS3's `depends_on`). Decide in Step 3a.
@@ -263,32 +259,57 @@ real OS3 scan is available: file naming/position handling, calibrate() on
 the actual 3-spread-batches policy across positions (this test only had one
 position), and a stack size other than 4.
 
-### Step 2 — Tiling logic plus comparison tool
+### Step 2 — Tiling logic plus comparison tool ✅ done 2026-09-27
 **Model:** Sonnet
 Build the tile split with overlap, still in Python. Plus a script that
 compares two images pixel by pixel (max deviation, share of differing
 pixels).
 Tiles follow the definition in `docs/spec/compute-interface.md` §3.4 (core
-plus overlap on every side, only the core is written). The values below may
-have been measured with a different tile/overlap definition — re-measure.
-**Comparison tool done, pulled forward to Step 1** (needed there too, to
-compare our output against OS3's own on a real scan): `os3stack compare
-<a> <b>`, plus `os3stack stack --calibration FILE` to feed it an existing
-calibration instead of computing one, isolating the merge step. The "what
-counts as a differing pixel" threshold isn't fixed by the spec, so the tool
-makes it an explicit, documented, overridable parameter (default: 1/255)
-rather than guessing at the methodology behind the table below. **Tiling
-itself is still open.**
+plus overlap on every side, only the core is written).
 **Test:** compare tiled against untiled. Target: share of differing pixels
 under 0.5%, mean deviation under 0.01 of 255.
-**Already measured (5 images, structured test subject, 512 px tiles,
-8-bit):**
 
-| Overlap | differing pixels | mean deviation |
-|---|---|---|
-| 0 px | 3.58% | 1.57 |
-| 16 px | 0.13% | 0.0016 |
-| 64 px | 0.23% | 0.0027 |
+**Status:** comparison tool (`os3stack compare`) was already done in Step 1
+(needed there too, against OS3's own output). Tiling: `os3stack.tiling`
+(tile/processing-rect geometry) plus `stack_batch(..., tile_plan=...)`, CLI
+flags `--tile-width/--tile-height/--tile-overlap`. 53 unit tests pass,
+including tiled-vs-untiled equivalence on synthetic images.
+
+**A real bug, caught only by testing on a real photo:** the first
+implementation recomputed each tile's downscaled focus-sharpness map from
+that tile's own cropped pixels. That resamples on a grid anchored to the
+tile's own size, which disagrees with the whole-image resampling grid
+almost everywhere in the tile, not just near its edges — on the checkerboard
+synthetic test image this stayed within tolerance (checkerboards have almost
+no near-tied sharpness pixels to flip), but on the real photo from Step 1 it
+produced 70-97% differing pixels. Fixed by computing each source's low-res
+focus energy *once* for the whole image and slicing+upsizing the relevant
+region per tile — the reason tile boundaries must be multiples of 4 in the
+first place. Detail and reasoning: `python/src/os3stack/stack.py` module
+docstring and `compute_focus_energy_lowres`'s docstring in `core.py`.
+
+**Measured (real photo, 4-level bracket from Step 1, 512 px tiles, `os3stack
+compare`'s default threshold of 1/255):**
+
+| Image size | Overlap | differing pixels | mean deviation |
+|---|---|---|---|
+| 1037x1555 (not a multiple of 4) | 16 px | 53.7% | 1.56 |
+| 1037x1555 (not a multiple of 4) | 64 px | 47.6% | 1.37 |
+| 1036x1552 (cropped to a multiple of 4) | 16 px | **0.000%** | **0.0000** |
+| 1036x1552 (cropped to a multiple of 4) | 64 px | **0.000%** | **0.0000** |
+
+Confirms a precondition already flagged in Step 0
+(`compute-interface.md` §3.4: "Exact tile/no-tile equivalence also needs
+image width and height divisible by 4"): with that precondition met, tiled
+and untiled are bit-for-bit identical, not merely within tolerance — for any
+tile size/overlap, not just the ones measured here (the underlying resampling
+math doesn't depend on the specific tile size once the base image satisfies
+the precondition). Common camera sensor resolutions satisfy it (e.g.
+4656x3496); this test photo (an arbitrary object photo, not from an OS3
+scan) didn't. `stack_batch` now warns when asked to tile a non-conforming
+size. The 5-image/0-16-64px table from earlier planning is superseded by
+this — it used an unknown methodology (no fixed differing-pixel threshold
+was specified) and, per the above, most likely hit the same bug.
 
 ### Step 3 — UI, as a new tab in OpenScan3-Client
 **Model:** Sonnet

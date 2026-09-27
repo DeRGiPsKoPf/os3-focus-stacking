@@ -54,6 +54,14 @@ spaced over the scan), matching completed-scan behaviour; live-scan policies
 (`leading`, `calibration-scan`) are orchestrator concerns from Step 3a on,
 not part of this reference CLI.
 
+Add `--tile-width`/`--tile-height`/`--tile-overlap` (all three, or none) to
+merge tile-by-tile instead of the whole image at once (compute-interface.md
+§3.4). Tiled and untiled output are bit-for-bit identical when the image's
+width and height are both multiples of 4 (true for common camera sensor
+resolutions); otherwise a warning is printed and the two can disagree well
+beyond the tolerance `compare` checks for — this was found and fixed on a
+real photo, see `os3stack/stack.py`'s module docstring.
+
 ### `compare` — pixel-diff two images
 
 ```

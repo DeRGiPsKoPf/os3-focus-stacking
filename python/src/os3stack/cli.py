@@ -32,6 +32,7 @@ from os3stack.compare import (
 )
 from os3stack.imageio import DEFAULT_JPEG_QUALITY
 from os3stack.stack import stack_batch
+from os3stack.tiling import TilePlan, grid_plan
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -61,6 +62,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     stack_cmd.add_argument("--project", type=str, default=None, help="Override the inferred project name")
     stack_cmd.add_argument("--scan-index", type=int, default=None, help="Override the inferred scan index")
+    stack_cmd.add_argument(
+        "--tile-width", type=int, default=None,
+        help="Merge tile-by-tile (compute-interface.md §3.4) instead of the whole image at "
+             "once. Requires --tile-height and --tile-overlap too. Multiple of 4.",
+    )
+    stack_cmd.add_argument("--tile-height", type=int, default=None, help="See --tile-width. Multiple of 4.")
+    stack_cmd.add_argument(
+        "--tile-overlap", type=int, default=None,
+        help="Context added on every side of each tile before merging; only the tile's core "
+             "is kept. See --tile-width. Multiple of 4, at least 16.",
+    )
 
     compare_cmd = subparsers.add_parser(
         "compare", help="Pixel-diff two images (compute-interface.md §3.4/§8)"
@@ -123,6 +135,24 @@ def _resolve_transforms(args: argparse.Namespace, batches, stack_size: int):
     return result.transforms, record
 
 
+def _resolve_tile_plan(args: argparse.Namespace) -> TilePlan | None:
+    """None (untiled) if none of --tile-width/-height/-overlap were given;
+    a validated grid plan if all three were. Raises ValueError otherwise,
+    or if the values themselves are invalid (see tiling.grid_plan)."""
+    given = {
+        "--tile-width": args.tile_width,
+        "--tile-height": args.tile_height,
+        "--tile-overlap": args.tile_overlap,
+    }
+    provided = {name: value for name, value in given.items() if value is not None}
+    if not provided:
+        return None
+    if len(provided) != len(given):
+        missing = ", ".join(name for name, value in given.items() if value is None)
+        raise ValueError(f"--tile-width/--tile-height/--tile-overlap must all be given together; missing {missing}")
+    return grid_plan(args.tile_width, args.tile_height, args.tile_overlap)
+
+
 def _run_stack(args: argparse.Namespace) -> int:
     scan_dir: Path = args.scan_dir
     if not scan_dir.is_dir():
@@ -146,10 +176,14 @@ def _run_stack(args: argparse.Namespace) -> int:
     print(f"Found {len(batches)} complete batch(es), stack size {stack_size}.")
 
     try:
+        tile_plan = _resolve_tile_plan(args)  # validate before the (possibly slow) calibration
         transforms, record = _resolve_transforms(args, batches, stack_size)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    if tile_plan is not None:
+        print(f"Tiling: {tile_plan.tile_width}x{tile_plan.tile_height}, overlap {tile_plan.overlap}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     if record is not None:
@@ -161,7 +195,7 @@ def _run_stack(args: argparse.Namespace) -> int:
     for position in sorted(batches):
         batch = batches[position]
         output_path = output_dir / f"stacked_scan{scan_index:02d}_{position:03d}.jpg"
-        stack_batch(batch, transforms, str(output_path), jpeg_quality=args.jpeg_quality)
+        stack_batch(batch, transforms, str(output_path), jpeg_quality=args.jpeg_quality, tile_plan=tile_plan)
         print(f"  stacked position {position:03d} -> {output_path.name}")
     elapsed = time.monotonic() - t0
     print(f"Stacked {len(batches)} position(s) in {elapsed:.1f}s ({elapsed / len(batches):.2f}s/position).")

@@ -22,3 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `os3stack stack --calibration FILE`: use an existing calibration record
   (ours or OS3's own `calibration_scanXX.json`) instead of calibrating, to
   compare just the merge step against OS3's own stacked output.
+- Tiled merging (Step 2): `os3stack.tiling` (tile geometry) and
+  `stack_batch(..., tile_plan=...)`, CLI flags `--tile-width`/`--tile-height`/
+  `--tile-overlap`. Tiled and untiled output are bit-for-bit identical for
+  image sizes divisible by 4 (a warning is raised otherwise).
+
+### Fixed
+
+- Tiled merging computed each tile's downscaled focus-sharpness map from
+  that tile's own cropped pixels, which resamples on the wrong grid and
+  disagreed with the untiled result almost everywhere in the tile (70-97%
+  differing pixels on a real photo, though within tolerance on the
+  checkerboard synthetic test). Fixed by computing each source's low-res
+  focus energy once for the whole image and slicing/upsizing it per tile.
+  See ROADMAP.md's Step 2 entry and `compute-interface.md` §3.4.
