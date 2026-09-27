@@ -56,11 +56,11 @@ not part of this reference CLI.
 
 Add `--tile-width`/`--tile-height`/`--tile-overlap` (all three, or none) to
 merge tile-by-tile instead of the whole image at once (compute-interface.md
-§3.4). Tiled and untiled output are bit-for-bit identical when the image's
-width and height are both multiples of 4 (true for common camera sensor
-resolutions); otherwise a warning is printed and the two can disagree well
-beyond the tolerance `compare` checks for — this was found and fixed on a
-real photo, see `os3stack/stack.py`'s module docstring.
+§3.4). Tiled and untiled output are always bit-for-bit identical, for any
+image size and any tile size/overlap — this took two attempts to get right,
+both found on a real photo rather than the synthetic test images; see
+`os3stack/stack.py`'s module docstring for what went wrong each time and why
+the final approach is exact unconditionally.
 
 ### `compare` — pixel-diff two images
 

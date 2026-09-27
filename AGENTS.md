@@ -35,13 +35,17 @@ language of the project.
   toggle — a separate 3-position calibration pre-scan before the main scan.
 - Tiling from the start; tile size/overlap are multiples of 4 px, overlap
   ≥ 16 px (definition: [docs/spec/compute-interface.md](docs/spec/compute-interface.md) §3.4).
-  **Critical implementation rule (learned the hard way in Step 2):** the
-  downscaled focus-sharpness map MUST be computed once per whole source
-  image and sliced+upsized per tile — never recomputed from a tile's own
-  cropped pixels, which resamples on the wrong grid and disagrees with the
-  untiled result almost everywhere in the tile, not just near its edges.
-  Applies to every tiled backend (CPU reference, WebGPU, helper), not just
-  `python/`.
+  **Critical implementation rule (learned the hard way in Step 2, two bugs
+  deep):** the focus-sharpness map MUST be computed once per whole source
+  image and sliced per tile — never recomputed from a tile's own cropped
+  pixels, which resamples on the wrong grid and disagrees with the untiled
+  result almost everywhere in the tile, not just near its edges. Prefer
+  slicing the *full-resolution* map (exact for any image size — what
+  `python/`'s CPU reference does) over slicing a low-res map and upsizing
+  per tile (only exact when image width/height are multiples of 4 — needed
+  for memory/texture-limited backends like WebGPU that can't hold a
+  full-resolution map per source; pad to the next multiple of 4 and crop
+  back if the input doesn't already conform).
 - 8 bits per channel for the browser/helper base version, permanently — not
   a stepping stone to 16-bit. The interface still always carries the number
   format as an explicit parameter.

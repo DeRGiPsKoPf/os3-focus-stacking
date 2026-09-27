@@ -155,28 +155,46 @@ the tolerances in §8.
 - The warp of a tile samples the *source* image at `M · p`; a backend MUST make
   the source region `bbox(M · processed rect)` plus 1 px available. That region
   can exceed the tile, and GPU backends size their textures accordingly.
-- **The downscaled focus-energy map (§3.3's Laplacian² step, before its final
-  upsize) MUST be computed once per whole source image, never independently
-  from a tile's own cropped pixels.** A tile then slices the region of that
-  shared low-res map its processing rect covers and upsizes just that slice —
-  the tiled equivalent of §3.3's "resize back to full size" for a whole image.
-  Downscaling each tile's crop independently resamples on a grid anchored to
-  that crop's own size, which disagrees with the whole-image resampling grid
-  almost everywhere in the tile, not only near its edges, defeating `overlap`
+- **The focus-energy map (§3.3's Laplacian² step) MUST be computed once per
+  whole source image, never independently from a tile's own cropped pixels.**
+  A tile then only *slices* the region of that shared map its processing rect
+  covers — it MUST NOT recompute any part of it. Computing a tile's map from
+  that tile's own cropped pixels resamples on a grid anchored to the tile's
+  own size, which disagrees with the whole-image resampling grid almost
+  everywhere in the tile, not only near its edges, defeating `overlap`
   entirely. Confirmed in Step 2 (`python/src/os3stack/stack.py`): on a
-  checkerboard synthetic image the bug stayed within tolerance (checkerboards
-  have few near-tied sharpness pixels to flip), but on a real photo it produced
-  70-97% differing pixels; the fix brought that to exactly 0 (given the width/
-  height-divisible-by-4 precondition below). Any tiled backend — this CPU
-  reference, WebGPU (Step 5), the helper (Step 6) — MUST follow the
+  checkerboard synthetic image this bug stayed within tolerance
+  (checkerboards have few near-tied sharpness pixels to flip), but on a real
+  photo it produced 70-97% differing pixels. Any tiled backend — this CPU
+  reference, WebGPU (Step 5), the helper (Step 6) — MUST follow this
   once-per-image ordering, not just meet the pixel-diff tolerance on whatever
   test image happens to be at hand.
-- `tileWidth`, `tileHeight`, `overlap` being multiples of 4 (above) is what
-  makes that slicing exact: 4 = 1/downscale, so every tile boundary lands on
-  an integer low-res pixel. Exact tile/no-tile equivalence (not merely within
-  tolerance) also needs image width and height divisible by 4 — true for
-  common sensors (4656×3496, 9152×6944) but not guaranteed for arbitrary
-  input; a backend SHOULD warn when asked to tile a non-conforming size.
+- Two ways to satisfy that rule, depending on what a backend can afford to
+  hold per source image:
+  - **Full resolution** (what this CPU reference does): compute the whole
+    map at full size (§3.3's Laplacian² step *including* its resize back up),
+    then slice per tile. Exact for any image size and any tile size/overlap —
+    slicing an already-computed array can't disagree with itself. Costs one
+    full-resolution array per source image alongside its aligned pixels.
+  - **Low resolution** (for a memory- or texture-size-constrained backend
+    that can't afford a full-resolution map per source, e.g. WebGPU's ~8192 px
+    texture limit): compute the map at its native 1/4-scale size only, slice
+    the region a tile's processing rect covers, and upsize just that slice.
+    This is only *exact* when the whole image's width and height are
+    themselves multiples of 4 — otherwise the image's own global downscale
+    ratio (`⌊size × 0.25⌋ / size`) isn't exactly 0.25 either, and no per-tile
+    slice can reproduce it without its own rounding (confirmed in Step 2: on a
+    1037×1555 photo this brought a backend from 70-97% differing pixels to
+    47-54%, much better but still nowhere near the target). `tileWidth`,
+    `tileHeight`, `overlap` being multiples of 4 (above) is necessary for this
+    approach's exactness but not sufficient by itself — 4 = 1/downscale, so
+    tile boundaries land on integer low-res pixels only if the image's own
+    boundary (its width/height) does too. Common sensors satisfy this
+    (4656×3496, 9152×6944); arbitrary input might not. A backend using this
+    approach SHOULD pad the image to the next multiple of 4 (edge replication)
+    before processing and crop back to the original size afterward — the
+    standard technique for block-based image transforms — rather than merely
+    warning and accepting a worse match.
 - A backend announces its `preferredTilePlan`; the orchestrator uses it unless
   overridden.
 

@@ -126,13 +126,17 @@ def test_tiled_stack_batch_exactly_matches_untiled_when_size_is_multiple_of_4(sc
     assert np.array_equal(load_image(str(untiled_path)), load_image(str(tiled_path)))
 
 
-def test_stack_batch_warns_when_tiled_size_is_not_a_multiple_of_4(tmp_path):
+def test_tiled_stack_batch_is_exact_even_when_image_size_is_not_a_multiple_of_4(tmp_path):
+    """The full-resolution-slicing design (see os3stack/stack.py's module
+    docstring) doesn't depend on the image size dividing evenly by 4 the way
+    a low-res-slice-then-upsize design would — tile/untiled must still match
+    exactly for an awkward size like 258x258 (unlike the 256x256 fixture,
+    which wouldn't have caught a regression back to that other design)."""
     from _synthetic import blur, make_checkerboard
     from os3stack.batches import Batch, StackImage
     from os3stack.imageio import save_image
 
-    # 258 is not a multiple of 4, unlike the 256x256 fixture images.
-    size = 258
+    size = 258  # not a multiple of 4
     base = make_checkerboard(size, size, square=32, seed=0)
     images = []
     for step, ksize in enumerate((9, 1, 9)):
@@ -140,9 +144,11 @@ def test_stack_batch_warns_when_tiled_size_is_not_a_multiple_of_4(tmp_path):
         save_image(str(path), blur(base, ksize), quality=95)
         images.append(StackImage(focus_step=step, path=path))
     batch = Batch(project_name="P", scan_index=0, position=0, images=tuple(images))
+    calibration = calibrate([batch])
 
-    with pytest.warns(UserWarning, match="multiple of 4"):
-        stack_batch(
-            batch, _identity_transforms(3), str(tmp_path / "out.jpg"),
-            tile_plan=grid_plan(64, 64, 16),
-        )
+    untiled_path = tmp_path / "untiled.jpg"
+    tiled_path = tmp_path / "tiled.jpg"
+    stack_batch(batch, calibration.transforms, str(untiled_path))
+    stack_batch(batch, calibration.transforms, str(tiled_path), tile_plan=grid_plan(64, 64, 16))
+
+    assert np.array_equal(load_image(str(untiled_path)), load_image(str(tiled_path)))

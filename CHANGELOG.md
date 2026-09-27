@@ -24,8 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compare just the merge step against OS3's own stacked output.
 - Tiled merging (Step 2): `os3stack.tiling` (tile geometry) and
   `stack_batch(..., tile_plan=...)`, CLI flags `--tile-width`/`--tile-height`/
-  `--tile-overlap`. Tiled and untiled output are bit-for-bit identical for
-  image sizes divisible by 4 (a warning is raised otherwise).
+  `--tile-overlap`. Tiled and untiled output are always bit-for-bit
+  identical, for any image size and any tile size/overlap.
 
 ### Fixed
 
@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that tile's own cropped pixels, which resamples on the wrong grid and
   disagreed with the untiled result almost everywhere in the tile (70-97%
   differing pixels on a real photo, though within tolerance on the
-  checkerboard synthetic test). Fixed by computing each source's low-res
-  focus energy once for the whole image and slicing/upsizing it per tile.
-  See ROADMAP.md's Step 2 entry and `compute-interface.md` §3.4.
+  checkerboard synthetic test). First fix (compute low-res focus energy once
+  for the whole image, slice+upsize per tile) brought this down to 48-54% on
+  a real photo whose dimensions weren't multiples of 4, and to exactly 0%
+  once they were — still an unconditional dependency on that precondition.
+  Final fix: slice each source's already-*full-resolution* focus map per
+  tile instead of a low-res one, which is exact for any image size — no
+  precondition needed. See ROADMAP.md's Step 2 entry and
+  `compute-interface.md` §3.4.
