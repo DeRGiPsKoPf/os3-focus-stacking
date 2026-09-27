@@ -8,3 +8,7 @@ client/
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# Test scan/image data (see AGENTS.md: test scans never go into the repo)
+/stack example/
+
