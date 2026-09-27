@@ -1,0 +1,43 @@
+{
+  "checkedOn": "2026-09-27",
+  "repos": {
+    "OpenScan3": {
+      "url": "https://github.com/OpenScan-org/OpenScan3.git",
+      "branch": "develop",
+      "baseline": "28a38931adcb5b0babed468c26c7a6bfeab1a324",
+      "note": "Watched files identical to tag v0.13.0 (bd99449), which the stacking algorithm is ported from.",
+      "watch": [
+        "openscan_firmware/utils/photos/stacking.py",
+        "openscan_firmware/controllers/services/tasks/core/focus_stacking_task.py",
+        "openscan_firmware/controllers/services/tasks/core/scan_task.py",
+        "openscan_firmware/controllers/services/focus_stacking.py",
+        "openscan_firmware/controllers/services/projects.py",
+        "openscan_firmware/routers/v0_9/projects.py",
+        "openscan_firmware/routers/next/projects.py",
+        "openscan_firmware/routers/v0_9/focus_stacking.py",
+        "openscan_firmware/routers/next/focus_stacking.py",
+        "openscan_firmware/routers/websocket.py",
+        "openscan_firmware/models/scan.py",
+        "openscan_firmware/config/scan.py",
+        "openscan_firmware/main.py",
+        "docs/WEBSOCKETS.md"
+      ]
+    },
+    "OpenScan3-Client": {
+      "url": "https://github.com/OpenScan-org/OpenScan3-Client.git",
+      "branch": "main",
+      "baseline": "56dfe2b01bccaf45e95e29e0bf6e645c6ea53deb",
+      "note": "Release 0.8.0. Upstream merges features into 'develop'.",
+      "watch": [
+        "app/package.json",
+        "app/quasar.config.js",
+        "app/src/router/routes.ts",
+        "app/src/layouts/MainLayout.vue",
+        "app/src/services/apiClient.ts",
+        "app/src/stores/tasks.ts",
+        "app/src/pages/ScanPage.vue",
+        "app/src/generated/api/versioned.gen.ts"
+      ]
+    }
+  }
+}

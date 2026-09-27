@@ -51,12 +51,23 @@ interface in Step 0).
   scan via ECC affine transform, then per position: warp → Laplacian² as
   sharpness measure → pick the sharpest image per pixel.
 - **Alignment and merging stay separate.** Alignment always runs on the CPU
-  and produces one 3×2 matrix per focus step. Only the merging step moves to
-  GPU/browser.
+  and produces one 2×3 affine matrix per focus step. Only the merging step
+  moves to GPU/browser.
+- **Calibration batches** (added in Step 0): OS3 calibrates from 3 batches
+  spread evenly over the whole scan, which is impossible while the scan is
+  still running. Completed scans keep OS3's spread; live scans use the first 3
+  completed positions by default, or — as a toggle — a separate short
+  calibration pre-scan (3 positions, same camera and focus settings) before
+  the main scan. The matrices describe the lens's focus breathing, which is the
+  same at every turntable position, so the pre-scan positions don't need to be
+  positions of the main scan. Details: `docs/spec/compute-interface.md` §4.2.
 - **Tiling from the start.** Any image size up to the native camera
   resolution. Tile size and overlap are multiples of 4 px (= 1 / the
   downscale factor of the sharpness map). Overlap at least 16 px.
-- **Transforms are always passed as a 3×2 matrix**, never backend-specific.
+- **Transforms are always passed as a 2×3 affine matrix** in OpenCV layout
+  (`[[a, b, c], [d, e, f]]`, maps output → source pixels), never
+  backend-specific. This file said "3×2" before Step 0; it's the same six
+  numbers (WGSL calls it `mat3x2`).
 - **8 bits per color channel to start, and permanently for the
   browser/helper base version.** 16-bit is **not** a near-term expansion
   step anymore — it's clearly assigned to the future helper+server
@@ -73,11 +84,21 @@ interface in Step 0).
   confirmed as a file on the target disk by reopening it, (2) only then call
   `DELETE /projects/{name}/{scan_index}/photos` with the original file
   names. Never delete solely because a "task succeeded" — protects against a
-  connection drop/crash mid-save.
+  connection drop/crash mid-save. Also never delete while OS3's own focus
+  stacking task for the same scan is pending or running: since client 0.8.0 the
+  Scan page can auto-start stacking on the Pi after the scan (`depends_on`),
+  and that task needs the originals. The Stacking tab warns about this case.
 - **Additive extension of `OpenScan3-Client`**, not a fork/iframe. A new
   tab/route next to the existing scan UI, built and shipped as part of the
   same Vue project. Goal: mergeable upstream as a PR without touching
-  existing code.
+  existing code beyond one route, one navigation entry and i18n strings.
+- **Development against current upstream, no long-lived fork.** The client is
+  developed in a plain clone of upstream `OpenScan3-Client` at `client/`
+  (gitignored, its own repository), on a feature branch that is rebased onto
+  upstream regularly. A GitHub fork is only created when pushing is needed
+  (backup, PR). `tools/check_upstream.py` reports upstream changes to every
+  firmware and client file the spec depends on; run it at the start of each
+  step.
 - **Tab-close protection:** a `beforeunload` warning with a confirmation
   dialog while a stacking run is active (the browser compute path otherwise
   has no persistence beyond closing the tab — that's the trade-off versus a
@@ -88,9 +109,12 @@ interface in Step 0).
   folder without further dialogs, live during the scan too. **Limitation:**
   this API doesn't exist in Firefox/Safari — falls back there to individual
   browser downloads per finished image (land in the default downloads
-  folder, not the chosen one). Helper compute path: a fixed path as a text
+  folder, not the chosen one). Downloads can't be re-read, so the two-stage
+  deletion is unavailable in that mode. The API also needs a secure context
+  (see the HTTPS section). Helper compute path: a fixed path as a text
   field in settings, since the helper is a standalone program with
-  unrestricted file access anyway.
+  unrestricted file access anyway (jobs only carry relative file names; the
+  root is set in the helper, the tab can change it only after pairing).
 
 ### On the 16-bit question (clearly deferred: helper+server expansion, not near-term)
 
@@ -119,11 +143,19 @@ a single, clearly scoped building block.
   weakness — easy to justify, not a security problem that needs fixing.
 - **Scope:** a self-signed certificate for a home-network device, an
   established pattern (comparable to router web UIs).
-- **Timing:** only affects Step 5 (WebGPU with parallel web workers), not the
-  earlier steps. Steps 0–4 run entirely without this discussion.
-  Recommendation: file the PR for this only once the rest already works and
-  has proven itself — a small, well-justified addition to a working feature
-  is easier to get accepted than an upfront requirement.
+- **Timing:** originally assumed to affect only Step 5 (WebGPU with parallel
+  web workers). **Correction from Step 0:** several APIs are available only in
+  secure contexts (HTTPS, or `localhost`): the File System Access API
+  (`showDirectoryPicker`, the storage-target folder dialog, Step 3), WebGPU
+  (Step 5) and `crypto.subtle`. If the Pi serves the UI over plain HTTP, the
+  Pi-served Stacking tab can offer only the download fallback, and therefore
+  no two-stage deletion, from Step 3 on. Development isn't blocked: the client
+  dev server runs on `localhost`, which is a secure context. How to proceed is
+  listed under open decisions.
+  Original recommendation, still sensible for the PR itself: file it only once
+  the rest already works and has proven itself — a small, well-justified
+  addition to a working feature is easier to get accepted than an upfront
+  requirement.
 - **Bar to clear:** must be integrated as solidly as the rest of the
   foundation, not bolted on as a quick hack.
 
@@ -135,6 +167,22 @@ a single, clearly scoped building block.
 - Write results back to the Pi? OS3 has no endpoint for that. Not a
   priority — results stay on the PC/chosen storage target. An additive PR
   against OS3 would be possible, but is its own, separate undertaking.
+- **HTTPS earlier than Step 5?** (raised in Step 0, see the HTTPS section.)
+  Check the browser's address bar against the maintainer's own Pi: `http://`
+  or `https://`? (The firmware repo itself is fully open source; the actual
+  nginx site config ships in a separate `openscan3-system-config` package
+  whose repo we didn't locate — not established as non-public, just not
+  found — so checking the live device is simpler than searching further.) If
+  it's HTTP: (a) keep the plan — until HTTPS exists, the Pi-served tab offers
+  downloads only and no deletion, full features during development via the
+  localhost dev server; or (b) pull the HTTPS PR forward to Step 3a. Decide
+  before Step 3.
+- How the calibration pre-scan gets its scan settings and is started (own
+  settings form in the Stacking tab vs. a touch point in the Scan page; main
+  scan chained via OS3's `depends_on`). Decide in Step 3a.
+- Upstream target branch for the PR (`develop` is where upstream merges
+  features, `main` is the default/release branch). Confirm with the
+  maintainers before opening the PR.
 
 ## Measured values (basis for all estimates)
 
@@ -161,7 +209,7 @@ Projection for the live scenario (400 positions × 12 levels × 16 MP, 8-bit,
 
 ## Steps
 
-### Step 0 — Skeleton and interface
+### Step 0 — Skeleton and interface ✅ done 2026-09-27
 **Model:** Opus (architecture decision)
 Define the folder structure, Git repo (fork of `OpenScan3-Client`), and the
 interface every compute path must satisfy: `calibrate(batches) → matrices`
@@ -170,12 +218,31 @@ Also: how the page detects whether a helper is reachable locally (for
 Step 6a), and how the storage target (folder handle or helper path) is
 passed through the interface.
 **Test:** none, pure specification.
+**Result:**
+- Interface: `docs/spec/compute-interface.md` (normative) and
+  `docs/spec/compute-interface.ts` (types, moves into the client in Step 3).
+  `stackBatch` takes one `StackJob` object (batch, transforms, tile plan,
+  number format, output spec) so the same shape travels to the helper as JSON.
+- Storage target: a `StorageTarget` union (folder handle / download / helper
+  directory / memory) inside the job's output spec; results report `verified`
+  only after a byte-exact re-read, which gates deletion.
+- Helper detection: `GET http://127.0.0.1:8742/v1/health`, with one-time
+  pairing per page origin in the helper's own window, in
+  `docs/spec/helper-http-api.md`.
+- Folder structure: see `AGENTS.md`. Instead of a fork, a plain upstream clone
+  at `client/` from Step 3 on; fork only when pushing.
+- Upstream tracking: `tools/check_upstream.py` + `tools/upstream-baseline.json`.
 
 ### Step 1 — Reference in Python
 **Model:** Sonnet
 A small command-line script using OpenScan3's original code that stacks a
 folder (8-bit). Serves as the **benchmark**: everything that later gets
 dropped in the browser gets compared against this.
+Lives in `python/` (package `os3stack`, layout in `AGENTS.md`) and implements
+`docs/spec/compute-interface.md` §3.2–3.3 on OS3's code. The scan folder is
+passed as an argument; test scans never go into the repo. Check on real data:
+whether OS3 on the Pi decodes with TurboJPEG or OpenCV (matters for EXIF
+orientation, spec §3.1), and what a failing ECC leaves in the matrix (§3.2).
 **Test:** run it on a real scan, look at the result.
 
 ### Step 2 — Tiling logic plus comparison tool
@@ -183,6 +250,9 @@ dropped in the browser gets compared against this.
 Build the tile split with overlap, still in Python. Plus a script that
 compares two images pixel by pixel (max deviation, share of differing
 pixels).
+Tiles follow the definition in `docs/spec/compute-interface.md` §3.4 (core
+plus overlap on every side, only the core is written). The values below may
+have been measured with a different tile/overlap definition — re-measure.
 **Test:** compare tiled against untiled. Target: share of differing pixels
 under 0.5%, mean deviation under 0.01 of 255.
 **Already measured (5 images, structured test subject, 512 px tiles,
@@ -201,6 +271,11 @@ next to the unchanged scan part: select images/scan, progress, view and save
 result, delete toggle, storage target selection (folder dialog). Built and
 shipped as a regular part of the rest of the client. Doesn't compute
 anything yet — it only calls the interface from Step 0.
+Starts by cloning upstream `OpenScan3-Client` into `client/` (feature branch)
+and moving `docs/spec/compute-interface.ts` to
+`app/src/stacking/compute/types.ts`, where it gets type-checked for the
+first time. Develop with the client's dev server on `localhost` (a secure
+context, so the folder dialog works) against the real Pi's API.
 **Test:** with a mocked compute path that returns finished images.
 
 ### Step 3a — Live stacking hookup
@@ -208,7 +283,9 @@ anything yet — it only calls the interface from Step 0.
 The "Stacking" tab polls/listens to OS3's WebSocket progress messages,
 detects finished positions while the scan is still running, triggers
 merging. Two-stage deletion as a toggle. `beforeunload` warning during an
-active run.
+active run. Calibration toggle: first 3 completed positions (default) vs.
+calibration pre-scan (see fixed decisions). Resume from the run file in the
+storage target (spec §5.4).
 **Test:** a full live scan, verify stacking keeps up with capturing and only
 the final stack is left as waiting time.
 
@@ -280,3 +357,10 @@ also where the 16-bit question becomes relevant again, see above.
 - Storage target selection: File System Access API on the browser path
   (Chromium browsers only), fixed path on the helper path. Firefox/Safari
   have no folder access — falls back to individual downloads there.
+- Photo names on the Pi: `scanXX_NNN_fsSS.jpg`. `NNN` is OS3's original path
+  index (not the capture order, the path gets optimised), `SS` starts at 0.
+  OS3 saves every photo of a position before it reports that position's
+  progress over `/ws/tasks`.
+- The working copy lives in Google Drive by the maintainer's choice (sync is
+  the maintainer's concern). Test scans are supplied from elsewhere and never
+  stored in the repo.

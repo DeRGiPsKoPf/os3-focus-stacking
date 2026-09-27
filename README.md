@@ -21,9 +21,12 @@ roadmap).
 
 ## Status
 
-Early setup stage — see [ROADMAP.md](ROADMAP.md) for the full plan,
-architecture decisions, and current step. [AGENTS.md](AGENTS.md) has a short
-reference for anyone (human or agent) implementing a step.
+Step 0 done: the compute interface is specified in
+[docs/spec/](docs/spec/compute-interface.md); nothing runs yet. See
+[ROADMAP.md](ROADMAP.md) for the full plan, architecture decisions, and
+current step. [AGENTS.md](AGENTS.md) has a short reference for anyone (human
+or agent) implementing a step, including the repository layout and the
+upstream change check (`python tools/check_upstream.py`).
 
 ## License
 
