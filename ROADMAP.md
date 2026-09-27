@@ -233,7 +233,7 @@ passed through the interface.
   at `client/` from Step 3 on; fork only when pushing.
 - Upstream tracking: `tools/check_upstream.py` + `tools/upstream-baseline.json`.
 
-### Step 1 — Reference in Python
+### Step 1 — Reference in Python — code done 2026-09-27, real-scan test pending
 **Model:** Sonnet
 A small command-line script using OpenScan3's original code that stacks a
 folder (8-bit). Serves as the **benchmark**: everything that later gets
@@ -244,6 +244,11 @@ passed as an argument; test scans never go into the repo. Check on real data:
 whether OS3 on the Pi decodes with TurboJPEG or OpenCV (matters for EXIF
 orientation, spec §3.1), and what a failing ECC leaves in the matrix (§3.2).
 **Test:** run it on a real scan, look at the result.
+**Status:** `python/` package `os3stack` with CLI `os3stack stack <scan-dir>`;
+24 unit tests on synthetic images pass. Both open questions were answered
+from OS3's source: `cv2.imread` is the default decode path (EXIF orientation
+applied), and a failed ECC always leaves the identity. Still open: the manual
+test on a real scan.
 
 ### Step 2 — Tiling logic plus comparison tool
 **Model:** Sonnet

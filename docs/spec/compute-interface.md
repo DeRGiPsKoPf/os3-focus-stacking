@@ -79,8 +79,14 @@ to the helper. `control` carries an `AbortSignal` and a progress callback.
   does (OS3 writes the tag from the camera's orientation setting). All
   coordinates (matrices, tiles, output) refer to the oriented image. Browser
   decoders MUST NOT apply colour management (`colorSpaceConversion: 'none'`).
-  *To verify in Step 1:* whether OS3 on the Pi decodes via TurboJPEG (no EXIF
-  rotation) or OpenCV; if TurboJPEG, this rule gets revisited.
+  *Resolved in Step 0:* neither `opencv-python` nor `pyturbojpeg` is a
+  declared dependency of `openscan-firmware` (checked against `pyproject.toml`
+  at the v0.13.0/`develop` baseline) — `cv2` comes from a system package on
+  the Pi image, and TurboJPEG's `TURBO_AVAILABLE` is `False` unless someone
+  installed it manually. `load_image` therefore falls through to
+  `cv2.imread(path, cv2.IMREAD_COLOR)` in the default install, which does
+  apply EXIF orientation. Re-check with `python tools/check_upstream.py` if
+  this ever changes.
 - `numberFormat.bitsPerChannel` MUST be honoured or rejected with
   `unsupported`; interface-1 backends accept only 8. Internal math is floating
   point (0.0–1.0) independent of bit depth.
@@ -102,10 +108,14 @@ For each batch:
 
 Across batches, the per-step matrices are averaged element-wise (float32),
 exactly like `calibrate_multi`. **ECC failures:** OS3 swallows `cv2.error` and
-keeps whatever matrix is left (normally the identity), which is then included in
-the average. Backends MUST reproduce this and additionally report each failure
-in `failures`. *Step 1 note:* check whether a failing `findTransformECC` can
-leave a partially updated matrix behind in OS3's code.
+keeps whatever matrix is left, which is then included in the average.
+*Resolved in Step 0:* `compute_alignment_transform` only ever reassigns its
+local `warp` variable on the *successful* return of `findTransformECC`
+(`_, warp = cv2.findTransformECC(...)`); a raised `cv2.error` happens before
+that assignment, so `warp` is always still the identity set at the top of the
+function — never a partially-updated matrix. Backends MUST reproduce this
+(failure ⇒ identity for that step) and additionally report each failure in
+`failures`.
 
 The matrix convention is fixed by [compute-interface.ts](compute-interface.ts)
 (`AffineMatrix`): OpenCV 2×3 layout, maps output → source coordinates, applied
