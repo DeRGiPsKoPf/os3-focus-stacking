@@ -32,18 +32,26 @@ def compute_focus_energy_lowres(img: np.ndarray, downscale: float = DOWNSCALE) -
     """Laplacian-squared sharpness energy at `downscale` resolution, without
     resizing back up.
 
-    Split out from `compute_focus_map` so tiled merging (compute-interface.md
-    §3.4) can compute this once per full source image and slice+upsize the
-    relevant region per tile, instead of downscaling each tile's own cropped
-    pixels independently. The two aren't equivalent: independently
-    downscaling a crop resamples on a grid anchored to that crop's own
-    dimensions, which generally disagrees with the full image's resampling
-    grid almost everywhere in the tile, not just near its edges. Slicing a
-    single shared low-res array only disagrees with the untiled result in a
-    margin near the slice edges (ordinary interpolation boundary effects) —
-    which `overlap` is sized to absorb, and tile boundaries being multiples
-    of 4 keeps those slice edges exact instead of introducing their own
-    rounding (see os3stack.stack).
+    Split out from `compute_focus_map` for backends that can't afford a
+    full-resolution focus map per source image (a real memory- or
+    texture-size-constrained tiled backend, e.g. Step 5's WebGPU): compute
+    this once per whole source image, then slice+upsize the relevant region
+    per tile, instead of downscaling each tile's own cropped pixels
+    independently (the two aren't equivalent — independently downscaling a
+    crop resamples on a grid anchored to that crop's own dimensions, which
+    disagrees with the full image's resampling grid almost everywhere in the
+    tile, not just near its edges).
+
+    Note this function is currently unused by `os3stack.stack`: this CPU
+    reference implementation can afford full-resolution focus maps (it
+    already holds full-resolution aligned pixels for every source at once),
+    so it slices those directly instead — exact for any image size. Slicing
+    *this* low-res-then-upsized-per-tile array is only exact when the whole
+    image's width and height are themselves multiples of 4 (so the global
+    downscale ratio `int(size*downscale)/size` is exactly `downscale`, matching
+    every tile's own ratio); tile boundaries being multiples of 4 alone isn't
+    enough. See os3stack.stack's module docstring for the full reasoning and
+    what an exact-for-any-size version of this approach would need (padding).
     """
     gray = resize_to_gray(img, downscale)
     laplacian = cv2.Laplacian(gray, cv2.CV_32F, ksize=3)

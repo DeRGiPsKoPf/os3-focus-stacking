@@ -272,44 +272,62 @@ under 0.5%, mean deviation under 0.01 of 255.
 **Status:** comparison tool (`os3stack compare`) was already done in Step 1
 (needed there too, against OS3's own output). Tiling: `os3stack.tiling`
 (tile/processing-rect geometry) plus `stack_batch(..., tile_plan=...)`, CLI
-flags `--tile-width/--tile-height/--tile-overlap`. 53 unit tests pass,
-including tiled-vs-untiled equivalence on synthetic images.
+flags `--tile-width/--tile-height/--tile-overlap`. 54 unit tests pass,
+including tiled-vs-untiled equivalence on synthetic images at both
+multiple-of-4 and deliberately awkward sizes.
 
-**A real bug, caught only by testing on a real photo:** the first
-implementation recomputed each tile's downscaled focus-sharpness map from
-that tile's own cropped pixels. That resamples on a grid anchored to the
-tile's own size, which disagrees with the whole-image resampling grid
-almost everywhere in the tile, not just near its edges — on the checkerboard
-synthetic test image this stayed within tolerance (checkerboards have almost
-no near-tied sharpness pixels to flip), but on the real photo from Step 1 it
-produced 70-97% differing pixels. Fixed by computing each source's low-res
-focus energy *once* for the whole image and slicing+upsizing the relevant
-region per tile — the reason tile boundaries must be multiples of 4 in the
-first place. Detail and reasoning: `python/src/os3stack/stack.py` module
-docstring and `compute_focus_energy_lowres`'s docstring in `core.py`.
+**Two bugs, both caught only by testing on a real photo:**
+
+1. The first implementation recomputed each tile's downscaled focus-sharpness
+   map from that tile's own cropped pixels. That resamples on a grid anchored
+   to the tile's own size, disagreeing with the whole-image resampling grid
+   almost everywhere in the tile, not just near its edges — on the
+   checkerboard synthetic test image this stayed within tolerance
+   (checkerboards have almost no near-tied sharpness pixels to flip), but on
+   the real photo from Step 1 it produced 70-97% differing pixels.
+2. The fix (compute each source's low-res focus energy *once* for the whole
+   image, then slice+upsize the relevant region per tile) still assumed the
+   image's width and height divide evenly by 4 — otherwise the *global*
+   downscale ratio `int(size*0.25)/size` isn't exactly 0.25 either, and a
+   per-tile slice can't reproduce it without its own rounding. On the real
+   photo (1037x1555, not divisible by 4) this brought the mismatch down from
+   70-97% to "only" 48-54% — much better, but nowhere near the target, and a
+   real reminder that "closer" isn't "fixed".
+
+**The actual fix:** don't slice a *low-res* array and upsize per tile at all
+— compute each source's focus map at *full* resolution once (the same array
+the untiled path already produces), and have every tile just slice that
+finished array. Slicing an already-computed array can't disagree with
+itself, so this is exact for *any* image size and *any* tile size/overlap,
+not just multiples of 4 — the multiple-of-4 requirement turned out to be an
+artifact of trying to stay at low resolution, not a fundamental limit. This
+CPU reference implementation can afford it because it already holds full-size
+aligned pixels for every source in memory at once; a real memory- or
+texture-limited backend (Step 5's WebGPU) still needs the low-res-slice
+approach and its multiple-of-4 precondition (or padding to the next multiple
+of 4 and cropping back, the standard technique for block-based transforms).
+Full reasoning: `python/src/os3stack/stack.py`'s module docstring;
+`core.compute_focus_energy_lowres`'s docstring covers the low-res approach
+kept for that future use.
 
 **Measured (real photo, 4-level bracket from Step 1, 512 px tiles, `os3stack
 compare`'s default threshold of 1/255):**
 
-| Image size | Overlap | differing pixels | mean deviation |
-|---|---|---|---|
-| 1037x1555 (not a multiple of 4) | 16 px | 53.7% | 1.56 |
-| 1037x1555 (not a multiple of 4) | 64 px | 47.6% | 1.37 |
-| 1036x1552 (cropped to a multiple of 4) | 16 px | **0.000%** | **0.0000** |
-| 1036x1552 (cropped to a multiple of 4) | 64 px | **0.000%** | **0.0000** |
+| Approach | Image size | Overlap | differing pixels | mean deviation |
+|---|---|---|---|---|
+| per-tile low-res recompute (bug 1) | 1037x1555 | 16 px | 73.0% | 2.22 |
+| per-tile low-res recompute (bug 1) | 1037x1555 | 64 px | 70.8% | 2.13 |
+| shared low-res, sliced per tile (bug 2) | 1037x1555 | 16 px | 53.7% | 1.56 |
+| shared low-res, sliced per tile (bug 2) | 1037x1555 | 64 px | 47.6% | 1.37 |
+| shared low-res, sliced per tile (bug 2) | 1036x1552 (cropped to ÷4) | 16/64 px | **0.000%** | **0.0000** |
+| **full-resolution, sliced per tile (fix)** | **1037x1555** | **16/64 px** | **0.000%** | **0.0000** |
 
-Confirms a precondition already flagged in Step 0
-(`compute-interface.md` §3.4: "Exact tile/no-tile equivalence also needs
-image width and height divisible by 4"): with that precondition met, tiled
-and untiled are bit-for-bit identical, not merely within tolerance — for any
-tile size/overlap, not just the ones measured here (the underlying resampling
-math doesn't depend on the specific tile size once the base image satisfies
-the precondition). Common camera sensor resolutions satisfy it (e.g.
-4656x3496); this test photo (an arbitrary object photo, not from an OS3
-scan) didn't. `stack_batch` now warns when asked to tile a non-conforming
-size. The 5-image/0-16-64px table from earlier planning is superseded by
-this — it used an unknown methodology (no fixed differing-pixel threshold
-was specified) and, per the above, most likely hit the same bug.
+Common camera sensor resolutions divide evenly by 4 anyway (e.g. 4656x3496),
+so bug 2 would rarely have shown up on an actual OS3 scan — but the fix means
+this no longer matters at all, for this implementation. The 5-image/0-16-64px
+table from earlier planning is superseded by all of the above — it used an
+unknown methodology (no fixed differing-pixel threshold was specified) and
+most likely hit bug 1.
 
 ### Step 3 — UI, as a new tab in OpenScan3-Client
 **Model:** Sonnet

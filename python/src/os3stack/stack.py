@@ -8,14 +8,39 @@ back to the result. Passing no `tile_plan` (or ``tiling.UNTILED``) processes
 the whole image as one tile, producing identical output to the pre-tiling
 version of this function.
 
-Crucially, each source's *low-res* focus energy (`compute_focus_energy_lowres`)
-is computed once for the whole image and then sliced+upsized per tile —
-never recomputed from a tile's own cropped pixels. See that function's
-docstring for why: independently downscaling a crop disagrees with the
-untiled result almost everywhere in the tile, not just near its edges,
-which defeated the purpose of tiling until this was caught on a real photo
-(a checkerboard-based synthetic test didn't expose it — see ROADMAP.md's
-Step 2 entry).
+Each source's focus map (`compute_focus_map`, i.e. already resized back up
+to full resolution) is computed once for the whole image; every tile then
+just *slices* its processing rect out of that finished array. Slicing an
+already-computed array can't disagree with itself, so this is exact for any
+image size and any tile size/overlap — not just images whose width and
+height happen to be multiples of 4 (an earlier version computed each source's
+*low-res* energy once and resized a slice of it per tile instead, which
+looked right but wasn't: resizing a crop uses a resampling ratio that only
+matches the whole image's own resampling ratio when the image size divides
+evenly by 1/downscale, so it was still exact-only-for-multiples-of-4, just a
+narrower and sneakier version of the original per-tile-recompute bug below).
+
+This costs one extra full-resolution float32 array per source image, which
+this reference implementation can afford: it already holds every source's
+full-resolution *aligned pixels* in memory at once (see the note below), so
+one more same-sized array per source is a fraction more, not a change of
+order of magnitude. A real memory- or texture-size-constrained backend
+(Step 5's WebGPU, texture-limited to ~8192 px) can't afford a full-resolution
+intermediate for every source and must genuinely tile the low-res-to-full-res
+upsize — for that, see compute-interface.md §3.4's normative rule (compute
+the low-res energy once, then slice-and-upsize the low-res slice per tile,
+which is only exact when image dimensions are multiples of 4; achieving
+exactness for arbitrary sizes there means padding to the next multiple of 4
+before processing and cropping back afterward, the standard technique for
+block-based image transforms).
+
+The original bug this replaced: the very first tiling implementation
+recomputed each tile's downscaled focus energy from that tile's own cropped
+pixels (rather than from a shared whole-image array at all), which resamples
+on a grid anchored to the tile's own size and disagreed with the untiled
+result almost everywhere in the tile, not just near its edges. Caught on a
+real photo (a checkerboard synthetic test didn't expose it) — see
+ROADMAP.md's Step 2 entry for the numbers.
 
 Not memory-optimized: unlike OS3's own single-pass loop (one warped image
 in memory at a time) this pre-warps every non-reference image up front, so
@@ -26,30 +51,14 @@ ROADMAP.md's measured-values table for what OS3's approach costs.
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
 
-import cv2
 import numpy as np
 
 from os3stack.batches import Batch
-from os3stack.core import DOWNSCALE, apply_transform, compute_focus_energy_lowres
+from os3stack.core import DOWNSCALE, apply_transform, compute_focus_map
 from os3stack.imageio import DEFAULT_JPEG_QUALITY, load_image, save_image
-from os3stack.tiling import UNTILED, Rect, TilePlan, compute_tiles
-
-
-def _focus_map_for_rect(energy_lowres: np.ndarray, rect: Rect, downscale: float) -> np.ndarray:
-    """Slice the region of a whole-image low-res energy map corresponding to
-    `rect` (a full-resolution rect whose bounds are multiples of 1/downscale,
-    guaranteed by tiling.grid_plan's validation) and upsize it to `rect`'s
-    own full-resolution size — the tiled equivalent of what
-    `compute_focus_map` does for a whole image in one step."""
-    lr_x0 = round(rect.x0 * downscale)
-    lr_y0 = round(rect.y0 * downscale)
-    lr_x1 = round(rect.x1 * downscale)
-    lr_y1 = round(rect.y1 * downscale)
-    sub = energy_lowres[lr_y0:lr_y1, lr_x0:lr_x1]
-    return cv2.resize(sub, (rect.width, rect.height))
+from os3stack.tiling import UNTILED, TilePlan, compute_tiles
 
 
 @dataclass(frozen=True)
@@ -82,7 +91,9 @@ def stack_batch(
         output_path: Where to write the merged JPEG (parent dirs created).
         jpeg_quality: 1..100 (OS3 default: 90).
         tile_plan: `tiling.grid_plan(...)` to merge tile-by-tile instead of
-            the whole image at once. Defaults to untiled.
+            the whole image at once. Defaults to untiled. Output is
+            bit-for-bit identical to untiled regardless of image size (see
+            this module's docstring).
     """
     n = batch.stack_size
     if len(transforms) != n:
@@ -109,36 +120,23 @@ def stack_batch(
         if step != reference_step
     }
 
-    if tile_plan is not None and tile_plan.kind == "grid" and (w % 4 != 0 or h % 4 != 0):
-        warnings.warn(
-            f"Image size {w}x{h} isn't a multiple of 4 in both dimensions; the global "
-            f"downscale ratio for the focus map (int(size*{downscale}) / size) then isn't "
-            f"exactly {downscale}, so tiled output can disagree with the untiled result "
-            f"well beyond the usual overlap margin, not just near tile edges (compute-"
-            f"interface.md §3.4). Common camera sensor resolutions are unaffected "
-            f"(e.g. 4656x3496).",
-            stacklevel=2,
-        )
+    # Full-resolution focus maps, computed once per image; every tile below
+    # only slices these, never recomputes them (see module docstring).
+    ref_focus_map = compute_focus_map(ref_img, downscale)
+    aligned_focus_maps = {
+        step: compute_focus_map(aligned_by_step[step], downscale)
+        for step in aligned_by_step
+    }
 
     result = ref_img.copy()
     tiles = compute_tiles(w, h, tile_plan or UNTILED)
-
-    # Low-res focus energy, computed once per image (cheap: 1/16 the
-    # pixels), then sliced+upsized per tile below — never recomputed from a
-    # tile's own cropped pixels (see this module's docstring and
-    # _focus_map_for_rect).
-    ref_energy_lowres = compute_focus_energy_lowres(ref_img, downscale)
-    aligned_energy_lowres = {
-        step: compute_focus_energy_lowres(aligned_by_step[step], downscale)
-        for step in aligned_by_step
-    }
 
     for tile in tiles:
         px0, py0, px1, py1 = tile.proc.x0, tile.proc.y0, tile.proc.x1, tile.proc.y1
         cx0, cy0, cx1, cy1 = tile.core.x0, tile.core.y0, tile.core.x1, tile.core.y1
 
         ref_sub = ref_img[py0:py1, px0:px1]
-        best_focus_sub = _focus_map_for_rect(ref_energy_lowres, tile.proc, downscale)
+        best_focus_sub = ref_focus_map[py0:py1, px0:px1]
         result_sub = ref_sub.copy()
 
         for step in range(n):
@@ -146,17 +144,13 @@ def stack_batch(
                 continue
 
             aligned_sub = aligned_by_step[step][py0:py1, px0:px1]
-            focus_sub = _focus_map_for_rect(aligned_energy_lowres[step], tile.proc, downscale)
+            focus_sub = aligned_focus_maps[step][py0:py1, px0:px1]
 
             better = focus_sub > best_focus_sub  # strict: ties keep the earlier value
             result_sub = np.where(better[..., np.newaxis], aligned_sub, result_sub)
             best_focus_sub = np.where(better, focus_sub, best_focus_sub)
 
         # Write only the core back, at its offset within the processing rect.
-        # Any disagreement with the untiled result — ordinary interpolation
-        # boundary effects from upsizing a cropped low-res slice — is
-        # confined to a margin near the *processing rect's* edges, which
-        # `overlap` pushes outside the core before this line ever runs.
         oy0, ox0 = cy0 - py0, cx0 - px0
         oy1, ox1 = oy0 + (cy1 - cy0), ox0 + (cx1 - cx0)
         result[cy0:cy1, cx0:cx1] = result_sub[oy0:oy1, ox0:ox1]
