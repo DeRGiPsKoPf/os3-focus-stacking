@@ -233,7 +233,7 @@ passed through the interface.
   at `client/` from Step 3 on; fork only when pushing.
 - Upstream tracking: `tools/check_upstream.py` + `tools/upstream-baseline.json`.
 
-### Step 1 — Reference in Python — code done 2026-09-27, real-scan test pending
+### Step 1 — Reference in Python ✅ done 2026-09-27
 **Model:** Sonnet
 A small command-line script using OpenScan3's original code that stacks a
 folder (8-bit). Serves as the **benchmark**: everything that later gets
@@ -244,11 +244,24 @@ passed as an argument; test scans never go into the repo. Check on real data:
 whether OS3 on the Pi decodes with TurboJPEG or OpenCV (matters for EXIF
 orientation, spec §3.1), and what a failing ECC leaves in the matrix (§3.2).
 **Test:** run it on a real scan, look at the result.
-**Status:** `python/` package `os3stack` with CLI `os3stack stack <scan-dir>`;
-24 unit tests on synthetic images pass. Both open questions were answered
-from OS3's source: `cv2.imread` is the default decode path (EXIF orientation
-applied), and a failed ECC always leaves the identity. Still open: the manual
-test on a real scan.
+**Status:** `python/` package `os3stack` with CLI `os3stack stack <scan-dir>`
+and `os3stack compare <a> <b>` (Step 2's tool, pulled forward); 38 unit tests
+on synthetic images pass. Both open questions were answered from OS3's
+source: `cv2.imread` is the default decode path (EXIF orientation applied),
+and a failed ECC always leaves the identity. **Real-scan test passed**
+2026-09-27 on a 4-level bracket of a real photo (souvenir model, 1037x1555,
+not an OS3 scan but genuine camera JPEGs — no OS3 device was available for
+this session): all four transforms converged (no ECC failures), scale
+changed smoothly and monotonically across steps (~1.007 → 1.0 (reference) →
+0.999, plausible focus breathing), and the merged result is sharp in regions
+that are blurred in every single input (near towers, receding right-hand
+structure, and the base lettering each sharp only in one or two of the four
+inputs, all sharp together in the output). `compare` correctly reports two
+different focus levels of that same series as ~96% differing pixels (FAIL,
+as expected — they really are different images). Still to confirm once a
+real OS3 scan is available: file naming/position handling, calibrate() on
+the actual 3-spread-batches policy across positions (this test only had one
+position), and a stack size other than 4.
 
 ### Step 2 — Tiling logic plus comparison tool
 **Model:** Sonnet
@@ -258,6 +271,14 @@ pixels).
 Tiles follow the definition in `docs/spec/compute-interface.md` §3.4 (core
 plus overlap on every side, only the core is written). The values below may
 have been measured with a different tile/overlap definition — re-measure.
+**Comparison tool done, pulled forward to Step 1** (needed there too, to
+compare our output against OS3's own on a real scan): `os3stack compare
+<a> <b>`, plus `os3stack stack --calibration FILE` to feed it an existing
+calibration instead of computing one, isolating the merge step. The "what
+counts as a differing pixel" threshold isn't fixed by the spec, so the tool
+makes it an explicit, documented, overridable parameter (default: 1/255)
+rather than guessing at the methodology behind the table below. **Tiling
+itself is still open.**
 **Test:** compare tiled against untiled. Target: share of differing pixels
 under 0.5%, mean deviation under 0.01 of 255.
 **Already measured (5 images, structured test subject, 512 px tiles,

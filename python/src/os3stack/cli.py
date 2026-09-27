@@ -1,10 +1,15 @@
-"""Reference CLI: stack a whole OS3 scan folder (Step 1 deliverable).
+"""Reference CLI: stack a whole OS3 scan folder (Step 1), and a pixel-diff
+comparison tool (Step 2, pulled forward).
 
-    os3stack stack <scan-dir> [--output-dir DIR] [--calibration-batches N]
+    os3stack stack <scan-dir> [--output-dir DIR] [--calibration-batches N] [--calibration FILE]
+    os3stack compare <image-a> <image-b> [--threshold N]
 
-Uses the `spread` calibration policy (compute-interface.md §4.2), matching
-OS3's own completed-scan behaviour. Live-scan policies belong to the
-orchestrator built in Step 3a, not this reference tool.
+`stack` uses the `spread` calibration policy (compute-interface.md §4.2),
+matching OS3's own completed-scan behaviour, unless `--calibration` points
+at an existing calibration file (ours or OS3's own) to use instead — useful
+to compare just the merge step against OS3's own stacked output, without
+also comparing which batches got picked for calibration. Live-scan policies
+belong to the orchestrator built in Step 3a, not this reference tool.
 """
 
 from __future__ import annotations
@@ -17,6 +22,14 @@ from pathlib import Path
 
 from os3stack.batches import find_image_batches, infer_project_and_scan
 from os3stack.calibrate import calibrate, spread_batches, to_calibration_record
+from os3stack.calibration_io import load_calibration_transforms
+from os3stack.compare import (
+    DEFAULT_MAX_DIFFERING_FRACTION,
+    DEFAULT_MAX_MEAN_DEVIATION,
+    DEFAULT_THRESHOLD,
+    compare_images,
+    format_report,
+)
 from os3stack.imageio import DEFAULT_JPEG_QUALITY
 from os3stack.stack import stack_batch
 
@@ -33,7 +46,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     stack_cmd.add_argument(
         "--calibration-batches", type=int, default=3,
-        help="Number of batches to calibrate from, spread over the scan (default: 3)",
+        help="Number of batches to calibrate from, spread over the scan (default: 3). "
+             "Ignored if --calibration is given.",
+    )
+    stack_cmd.add_argument(
+        "--calibration", type=Path, default=None,
+        help="Use transforms from an existing calibration JSON (ours or OS3's own "
+             "calibration_scanXX.json) instead of calibrating. Skips writing a new "
+             "calibration file.",
     )
     stack_cmd.add_argument(
         "--jpeg-quality", type=int, default=DEFAULT_JPEG_QUALITY,
@@ -42,7 +62,65 @@ def _build_parser() -> argparse.ArgumentParser:
     stack_cmd.add_argument("--project", type=str, default=None, help="Override the inferred project name")
     stack_cmd.add_argument("--scan-index", type=int, default=None, help="Override the inferred scan index")
 
+    compare_cmd = subparsers.add_parser(
+        "compare", help="Pixel-diff two images (compute-interface.md §3.4/§8)"
+    )
+    compare_cmd.add_argument("image_a", type=Path)
+    compare_cmd.add_argument("image_b", type=Path)
+    compare_cmd.add_argument(
+        "--threshold", type=int, default=DEFAULT_THRESHOLD,
+        help=f"Per-pixel worst-channel deviation (0-255) above which a pixel counts "
+             f"as differing (default: {DEFAULT_THRESHOLD})",
+    )
+    compare_cmd.add_argument(
+        "--max-differing-fraction", type=float, default=DEFAULT_MAX_DIFFERING_FRACTION,
+        help=f"Exit 1 if the differing-pixel share is at or above this (default: "
+             f"{DEFAULT_MAX_DIFFERING_FRACTION})",
+    )
+    compare_cmd.add_argument(
+        "--max-mean-deviation", type=float, default=DEFAULT_MAX_MEAN_DEVIATION,
+        help=f"Exit 1 if the mean absolute deviation is at or above this, out of 255 "
+             f"(default: {DEFAULT_MAX_MEAN_DEVIATION:.3f})",
+    )
+
     return parser
+
+
+def _resolve_transforms(args: argparse.Namespace, batches, stack_size: int):
+    """Return (transforms, calibration_record_or_None) per --calibration or
+    the `spread` policy. `calibration_record_or_None` is written to
+    <output-dir>/calibration_scanXX.json only when we computed it ourselves."""
+    if args.calibration is not None:
+        print(f"Loading calibration from {args.calibration} ...")
+        transforms = load_calibration_transforms(str(args.calibration))
+        if len(transforms) != stack_size:
+            raise ValueError(
+                f"{args.calibration} has {len(transforms)} transform(s), "
+                f"but this scan's stack size is {stack_size}"
+            )
+        return transforms, None
+
+    calibration_batches = spread_batches(batches, args.calibration_batches)
+    print(
+        f"Calibrating from {len(calibration_batches)} batch(es) at positions "
+        f"{[b.position for b in calibration_batches]} ..."
+    )
+    t0 = time.monotonic()
+    result = calibrate(calibration_batches)
+    print(f"Calibration done in {time.monotonic() - t0:.1f}s.")
+    if result.failures:
+        print(f"warning: {len(result.failures)} alignment failure(s) fell back to identity:")
+        for failure in result.failures:
+            print(f"  position {failure.position}, focus step {failure.focus_step}: {failure.message}")
+
+    record = to_calibration_record(
+        result,
+        project_name=calibration_batches[0].project_name,
+        scan_index=calibration_batches[0].scan_index,
+        source_positions=[b.position for b in calibration_batches],
+        policy={"kind": "spread", "batchCount": args.calibration_batches},
+    )
+    return result.transforms, record
 
 
 def _run_stack(args: argparse.Namespace) -> int:
@@ -67,36 +145,23 @@ def _run_stack(args: argparse.Namespace) -> int:
     stack_size = next(iter(batches.values())).stack_size
     print(f"Found {len(batches)} complete batch(es), stack size {stack_size}.")
 
-    calibration_batches = spread_batches(batches, args.calibration_batches)
-    print(
-        f"Calibrating from {len(calibration_batches)} batch(es) at positions "
-        f"{[b.position for b in calibration_batches]} ..."
-    )
-    t0 = time.monotonic()
-    result = calibrate(calibration_batches)
-    print(f"Calibration done in {time.monotonic() - t0:.1f}s.")
-    if result.failures:
-        print(f"warning: {len(result.failures)} alignment failure(s) fell back to identity:")
-        for failure in result.failures:
-            print(f"  position {failure.position}, focus step {failure.focus_step}: {failure.message}")
+    try:
+        transforms, record = _resolve_transforms(args, batches, stack_size)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    record = to_calibration_record(
-        result,
-        project_name=project_name,
-        scan_index=scan_index,
-        source_positions=[b.position for b in calibration_batches],
-        policy={"kind": "spread", "batchCount": args.calibration_batches},
-    )
-    calibration_path = output_dir / f"calibration_scan{scan_index:02d}.json"
-    calibration_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
-    print(f"Wrote {calibration_path}")
+    if record is not None:
+        calibration_path = output_dir / f"calibration_scan{scan_index:02d}.json"
+        calibration_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+        print(f"Wrote {calibration_path}")
 
     t0 = time.monotonic()
     for position in sorted(batches):
         batch = batches[position]
         output_path = output_dir / f"stacked_scan{scan_index:02d}_{position:03d}.jpg"
-        stack_batch(batch, result.transforms, str(output_path), jpeg_quality=args.jpeg_quality)
+        stack_batch(batch, transforms, str(output_path), jpeg_quality=args.jpeg_quality)
         print(f"  stacked position {position:03d} -> {output_path.name}")
     elapsed = time.monotonic() - t0
     print(f"Stacked {len(batches)} position(s) in {elapsed:.1f}s ({elapsed / len(batches):.2f}s/position).")
@@ -104,11 +169,35 @@ def _run_stack(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_compare(args: argparse.Namespace) -> int:
+    for path in (args.image_a, args.image_b):
+        if not path.is_file():
+            print(f"error: not a file: {path}", file=sys.stderr)
+            return 1
+
+    try:
+        result = compare_images(str(args.image_a), str(args.image_b), threshold=args.threshold)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"{args.image_a.name} vs {args.image_b.name}")
+    print(format_report(result))
+
+    ok = result.within_tolerance(args.max_differing_fraction, args.max_mean_deviation)
+    print("PASS" if ok else "FAIL", "(tolerance: "
+          f"<{args.max_differing_fraction * 100:.2f}% differing, "
+          f"<{args.max_mean_deviation:.3f} mean deviation)")
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.command == "stack":
         return _run_stack(args)
+    if args.command == "compare":
+        return _run_compare(args)
     parser.error(f"unknown command: {args.command}")
     return 2  # unreachable, parser.error() exits
 

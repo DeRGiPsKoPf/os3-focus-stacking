@@ -33,19 +33,40 @@ python -m pip install --upgrade pip --trusted-host pypi.org --trusted-host files
 
 ## Usage
 
+### `stack` — stack a whole scan folder
+
 ```
-os3stack stack <scan-dir> [--output-dir DIR] [--calibration-batches N] [--jpeg-quality Q]
+os3stack stack <scan-dir> [--output-dir DIR] [--calibration-batches N] [--calibration FILE] [--jpeg-quality Q]
 ```
 
 `<scan-dir>` is an OS3 scan folder (e.g. `.../MyProject/scan00`) containing
 `scan{XX}_{NNN}_fs{SS}.jpg` files. Output defaults to `<scan-dir>/stacked`:
 one `stacked_scan{XX}_{NNN}.jpg` per position plus `calibration_scan{XX}.json`
-(format: `CalibrationRecord` in the spec).
+(format: `CalibrationRecord` in the spec) — unless `--calibration FILE` is
+given, which uses that file's transforms instead of calibrating (accepts
+both our own file and OS3's own `calibration_scanXX.json`) and writes no new
+calibration file. Useful to compare just the merge step against OS3's own
+stacked output, e.g. when OS3's own focus-stacking task ran on the same
+scan: point `--calibration` at the Pi's `stacked/calibration_scanXX.json`.
 
-Calibration uses the `spread` policy (batches evenly spaced over the scan),
-matching completed-scan behaviour; live-scan policies (`leading`,
-`calibration-scan`) are orchestrator concerns from Step 3a on, not part of
-this reference CLI.
+Calibration (when not overridden) uses the `spread` policy (batches evenly
+spaced over the scan), matching completed-scan behaviour; live-scan policies
+(`leading`, `calibration-scan`) are orchestrator concerns from Step 3a on,
+not part of this reference CLI.
+
+### `compare` — pixel-diff two images
+
+```
+os3stack compare <image-a> <image-b> [--threshold N] [--max-differing-fraction F] [--max-mean-deviation F]
+```
+
+Reports max/mean absolute deviation and the share of "differing" pixels (a
+pixel's worst channel deviating by more than `--threshold`, default 1 of
+255 — see `os3stack/compare.py` for why that's not fixed by the spec).
+Exits 0 if both the differing-pixel share and the mean deviation are below
+their limits (defaults: compute-interface.md §8's targets, 0.5% / 0.01·255),
+1 otherwise. Use it to compare tiled against untiled output (Step 2) or our
+output against OS3's own.
 
 ## Tests
 
