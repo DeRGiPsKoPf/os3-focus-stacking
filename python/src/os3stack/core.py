@@ -28,13 +28,33 @@ def resize_to_gray(img: np.ndarray, scale: float) -> np.ndarray:
     return cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
 
 
+def compute_focus_energy_lowres(img: np.ndarray, downscale: float = DOWNSCALE) -> np.ndarray:
+    """Laplacian-squared sharpness energy at `downscale` resolution, without
+    resizing back up.
+
+    Split out from `compute_focus_map` so tiled merging (compute-interface.md
+    §3.4) can compute this once per full source image and slice+upsize the
+    relevant region per tile, instead of downscaling each tile's own cropped
+    pixels independently. The two aren't equivalent: independently
+    downscaling a crop resamples on a grid anchored to that crop's own
+    dimensions, which generally disagrees with the full image's resampling
+    grid almost everywhere in the tile, not just near its edges. Slicing a
+    single shared low-res array only disagrees with the untiled result in a
+    margin near the slice edges (ordinary interpolation boundary effects) —
+    which `overlap` is sized to absorb, and tile boundaries being multiples
+    of 4 keeps those slice edges exact instead of introducing their own
+    rounding (see os3stack.stack).
+    """
+    gray = resize_to_gray(img, downscale)
+    laplacian = cv2.Laplacian(gray, cv2.CV_32F, ksize=3)
+    return laplacian * laplacian
+
+
 def compute_focus_map(img: np.ndarray, downscale: float = DOWNSCALE) -> np.ndarray:
     """Laplacian-squared sharpness energy, computed at `downscale` and
     resized back to `img`'s full resolution."""
     h, w = img.shape[:2]
-    gray = resize_to_gray(img, downscale)
-    laplacian = cv2.Laplacian(gray, cv2.CV_32F, ksize=3)
-    energy = laplacian * laplacian
+    energy = compute_focus_energy_lowres(img, downscale)
     return cv2.resize(energy, (w, h))
 
 

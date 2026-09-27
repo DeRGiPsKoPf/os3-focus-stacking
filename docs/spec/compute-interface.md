@@ -155,8 +155,30 @@ the tolerances in §8.
 - The warp of a tile samples the *source* image at `M · p`; a backend MUST make
   the source region `bbox(M · processed rect)` plus 1 px available. That region
   can exceed the tile, and GPU backends size their textures accordingly.
+- **The downscaled focus-energy map (§3.3's Laplacian² step, before its final
+  upsize) MUST be computed once per whole source image, never independently
+  from a tile's own cropped pixels.** A tile then slices the region of that
+  shared low-res map its processing rect covers and upsizes just that slice —
+  the tiled equivalent of §3.3's "resize back to full size" for a whole image.
+  Downscaling each tile's crop independently resamples on a grid anchored to
+  that crop's own size, which disagrees with the whole-image resampling grid
+  almost everywhere in the tile, not only near its edges, defeating `overlap`
+  entirely. Confirmed in Step 2 (`python/src/os3stack/stack.py`): on a
+  checkerboard synthetic image the bug stayed within tolerance (checkerboards
+  have few near-tied sharpness pixels to flip), but on a real photo it produced
+  70-97% differing pixels; the fix brought that to exactly 0 (given the width/
+  height-divisible-by-4 precondition below). Any tiled backend — this CPU
+  reference, WebGPU (Step 5), the helper (Step 6) — MUST follow the
+  once-per-image ordering, not just meet the pixel-diff tolerance on whatever
+  test image happens to be at hand.
+- `tileWidth`, `tileHeight`, `overlap` being multiples of 4 (above) is what
+  makes that slicing exact: 4 = 1/downscale, so every tile boundary lands on
+  an integer low-res pixel. Exact tile/no-tile equivalence (not merely within
+  tolerance) also needs image width and height divisible by 4 — true for
+  common sensors (4656×3496, 9152×6944) but not guaranteed for arbitrary
+  input; a backend SHOULD warn when asked to tile a non-conforming size.
 - A backend announces its `preferredTilePlan`; the orchestrator uses it unless
-  overridden. Step 2 measures the accuracy of this exact definition.
+  overridden.
 
 ### 3.5 Results and errors
 
