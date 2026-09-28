@@ -87,11 +87,20 @@ os3-focus-stacking/            (this repo)
 - Client code goes to `app/src/stacking/`, `app/src/pages/StackingPage.vue`,
   `app/src/components/stacking/`. Touch points in existing client code stay
   minimal: one route in `app/src/router/routes.ts`, one nav entry in
-  `app/src/layouts/MainLayout.vue`, strings in `app/src/i18n/en-US/index.ts`.
+  `app/src/layouts/MainLayout.vue`. (No i18n strings: the client uses plain
+  English strings in every page, vue-i18n is only boilerplate.) Browser
+  globals missing from the client's hand-maintained ESLint allowlist are
+  declared per file with `/* global ... */`, not by editing `eslint.config.mjs`.
+- The compute interface's TypeScript types live in the client at
+  `app/src/stacking/compute/types.ts`; `docs/spec/compute-interface.ts` is
+  only a pointer to them now.
 - Test scans are never stored in the repo; scripts take their location as an
   argument.
-- The working copy lives in Google Drive by the maintainer's choice; don't
-  move it.
+- The working copy lives at `C:\dev\os3-focus-stacking` (moved off Google
+  Drive on 2026-09-28: `npm install` failed there reproducibly because the
+  Drive sync client locks files in `node_modules` while npm writes them).
+  Keep it — and especially `client/app/node_modules` and `python/.venv` — out
+  of cloud-synced folders.
 
 ## Upstream tracking
 
@@ -142,5 +151,10 @@ See [ROADMAP.md](ROADMAP.md) for full detail per step. Summary of what
   chosen storage target.
 - `showDirectoryPicker`, `crypto.subtle` and WebGPU need a secure context
   (HTTPS or localhost). The client dev server on localhost qualifies.
+- Client development needs Node 22 (`package.json` requires `^22 || ^20`, so
+  not the current LTS 24): `cd client/app`, `npm install`, then `npm run dev`
+  (localhost) or `npm run build`. The build runs ESLint as a gate; the client
+  does not type-check `.vue` files, and upstream already has `tsc` errors of
+  its own — check only that none come from `src/stacking` or our pages.
 - Known upstream bug: `FocusStacker.calibrate()` doesn't set
   `self.transforms` — pass matrices explicitly to `stack()`.

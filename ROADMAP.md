@@ -329,7 +329,7 @@ table from earlier planning is superseded by all of the above — it used an
 unknown methodology (no fixed differing-pixel threshold was specified) and
 most likely hit bug 1.
 
-### Step 3 — UI, as a new tab in OpenScan3-Client
+### Step 3 — UI, as a new tab in OpenScan3-Client ✅ done 2026-09-28 (scan selection moved to 3a)
 **Model:** Sonnet
 New tab/route "Stacking" in the existing `OpenScan3-Client` Vue project,
 next to the unchanged scan part: select images/scan, progress, view and save
@@ -342,6 +342,29 @@ and moving `docs/spec/compute-interface.ts` to
 first time. Develop with the client's dev server on `localhost` (a secure
 context, so the folder dialog works) against the real Pi's API.
 **Test:** with a mocked compute path that returns finished images.
+**Status:** built in `client/` on branch `feature/stacking-tab` (local only;
+no fork yet, so nothing pushed). New code: `app/src/stacking/` (the moved
+`compute/types.ts`, a mock `ComputeBackend` in `compute/mock.ts`, fixed mock
+batches, a Pinia store driving calibrate → stackBatch per position),
+`app/src/pages/StackingPage.vue`, `app/src/components/stacking/`. Touch
+points in existing code: one route, one nav entry. Test passed in the browser
+against the dev server: full run with progress and per-position status,
+result thumbnails with download, abort mid-run. ESLint clean, no `tsc`
+errors in our files (upstream has pre-existing `tsc` errors of its own and
+doesn't type-check in its build), production build succeeds.
+Deviations and open points:
+- **Scan selection moved to Step 3a.** The tab runs on fixed mock batches.
+  Choosing a real project/scan needs batch discovery from OS3's photo list,
+  which is 3a's hookup — and no Pi was reachable to test against.
+- **Folder dialog needs one manual test** in Chrome/Edge: the code path
+  exists (`showDirectoryPicker`, writes through the handle), but the native
+  OS dialog can't be driven by automation.
+- No i18n strings: the client doesn't use vue-i18n in any real page (plain
+  English strings throughout), so `app/src/i18n/en-US/index.ts` stays
+  untouched — one touch point fewer than planned.
+- `FileSystemDirectoryHandle`/`DOMException` are missing from the client's
+  hand-maintained ESLint globals list; declared per file with `/* global */`
+  instead of editing the shared `eslint.config.mjs`.
 
 ### Step 3a — Live stacking hookup
 **Model:** Sonnet
@@ -350,7 +373,9 @@ detects finished positions while the scan is still running, triggers
 merging. Two-stage deletion as a toggle. `beforeunload` warning during an
 active run. Calibration toggle: first 3 completed positions (default) vs.
 calibration pre-scan (see fixed decisions). Resume from the run file in the
-storage target (spec §5.4).
+storage target (spec §5.4). Also, moved here from Step 3: choosing a real
+project/scan (existing projects store + batch discovery from the scan's
+photo list, spec §4.1), replacing the mock batches.
 **Test:** a full live scan, verify stacking keeps up with capturing and only
 the final stack is left as waiting time.
 
@@ -426,6 +451,9 @@ also where the 16-bit question becomes relevant again, see above.
   index (not the capture order, the path gets optimised), `SS` starts at 0.
   OS3 saves every photo of a position before it reports that position's
   progress over `/ws/tasks`.
-- The working copy lives in Google Drive by the maintainer's choice (sync is
-  the maintainer's concern). Test scans are supplied from elsewhere and never
-  stored in the repo.
+- The working copy lives at `C:\dev\os3-focus-stacking`. It started out in
+  Google Drive, but in Step 3 `npm install` failed there reproducibly
+  (`EPERM`/`EBADF`: the Drive sync client locks files in `node_modules` while
+  npm writes them), so the whole project moved to a local folder on
+  2026-09-28. Test scans are supplied from elsewhere and never stored in the
+  repo.

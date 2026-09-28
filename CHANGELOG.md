@@ -26,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `stack_batch(..., tile_plan=...)`, CLI flags `--tile-width`/`--tile-height`/
   `--tile-overlap`. Tiled and untiled output are always bit-for-bit
   identical, for any image size and any tile size/overlap.
+- Step 3, in the OpenScan3-Client clone (`client/`, branch
+  `feature/stacking-tab`, not yet published): a "Stacking" tab running
+  against a mock compute backend — storage-target selection, progress,
+  per-position results with download, abort. The compute interface types
+  moved there (`app/src/stacking/compute/types.ts`);
+  `docs/spec/compute-interface.ts` is now a pointer.
+
+### Changed
+
+- The working copy moved from Google Drive to `C:\dev\os3-focus-stacking`:
+  Drive's sync client locked files in `node_modules` mid-write and made
+  `npm install` fail reproducibly.
 
 ### Fixed
 
