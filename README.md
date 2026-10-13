@@ -1,5 +1,7 @@
 # OS3 Focus Stacking
 
+# Still in Developement - use at your own risk
+
 A web interface that processes focus stacks produced by
 [OpenScan3](https://github.com/OpenScan-org/OpenScan3), running live while a
 scan is in progress, with the existing OS3 web UI embedded alongside it.
