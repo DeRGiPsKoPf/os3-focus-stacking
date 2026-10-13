@@ -4,6 +4,13 @@ Interface version: **1** · Status: specified in Step 0, implemented in Step 6
 (operations) and Step 6a (detection/pairing) · Types:
 [compute-interface.ts](compute-interface.ts)
 
+> **Superseded in part (2026-10-14).** The roadmap switched the helper to a
+> same-origin model: it reverse-proxies the Pi's UI at `localhost:8742` and
+> serves this API under `/helper/v1/` on the same origin, so §1's probe URL,
+> §2 (origin allowlist, pairing, CORS) and the pairing endpoints in §3 no
+> longer apply as written. This document is rewritten at the start of
+> Step 6 — see ROADMAP.md, "On the helper's scope" and Step 6.
+
 The helper is a standalone Python program (double-click to start) that offers
 the compute interface over HTTP to the Stacking tab, which the Pi serves. It
 fetches photos from the Pi itself and writes results below its own output

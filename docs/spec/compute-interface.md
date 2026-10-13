@@ -306,6 +306,12 @@ This mirrors OS3's own resume logic.
 
 ## 6. Helper detection (Step 6a)
 
+> **Superseded (2026-10-14):** detection becomes a same-origin
+> `GET /helper/v1/health` from the helper-hosted UI, without pairing; the
+> cross-origin probe below is deferred. Rewritten at the start of Step 6 —
+> see ROADMAP.md, "On the helper's scope" and Steps 6/6a. Same for the
+> "paired helper wins" rule in §2.
+
 - The page probes `GET http://127.0.0.1:8742/v1/health` on load of the Stacking
   tab and on user request (timeout 1 s). No address typing; an advanced setting
   MAY override the URL.

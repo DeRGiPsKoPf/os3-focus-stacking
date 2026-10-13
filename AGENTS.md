@@ -63,8 +63,16 @@ language of the project.
   (Chromium, secure context only); Firefox/Safari fall back to per-image
   downloads (no deletion possible then). Helper path uses a fixed configured
   directory.
-- Compute path priority: browser first, then a Windows/Mac helper, Android
-  only if at all (no background-process option there).
+- Compute path priority: browser first, then the helper — Windows, macOS
+  and Linux as equal targets.
+- Helper scope: a small, optional companion, never a second control UI. It
+  reverse-proxies the Pi's own OpenScan3-Client at `localhost:8742` (same
+  origin as its API under `/helper/v1/`), adds compute, storage and runs
+  that outlive the tab, never moves hardware or starts scans. The Stacking
+  tab turns helper features on per capability flag from
+  `/helper/v1/health`; no other OS3 page knows about the helper.
+- No server version of the helper: server-side processing is covered by
+  OpenScan Cloud.
 
 ## Repository layout
 
@@ -130,9 +138,8 @@ See [ROADMAP.md](ROADMAP.md) for full detail per step. Summary of what
 | 3a | Live hookup via OS3 WebSocket, two-stage delete, beforeunload | full live scan keeps up, only final stack waits |
 | 4 | Pyodide (Python-in-browser) compute | matches Step 1 output |
 | 5 | WebGPU compute, tiled | matches Step 4 within Step 2's tolerance |
-| 6 | Windows/Mac helper (HTTP, same interface) | full scan from the Pi, abort/resume |
-| 6a | Auto helper-detection, Android (lowest priority) | — |
-| 7 | Server-hosted helper + login | — |
+| 6 | Helper on Windows/macOS/Linux: reverse proxy for the Pi's UI + compute + runs | full scan from the helper-hosted UI on all three OSes, abort/resume |
+| 6a | Same-origin helper detection, features per capability flag | — |
 
 ## Notes for implementers
 

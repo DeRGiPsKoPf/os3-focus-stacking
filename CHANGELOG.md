@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The working copy moved off Google Drive to a local folder: Drive's sync
   client locked files in `node_modules` mid-write and made `npm install`
   fail reproducibly.
+- Roadmap: the helper's scope is fixed as a small, optional companion, not a
+  second control UI. It reverse-proxies the Pi's own OpenScan3-Client at
+  `localhost:8742` so the page and its API share one origin (replacing the
+  cross-origin pairing design from Step 0), and the Stacking tab turns
+  helper features on per capability. Windows, macOS and Linux are equal
+  targets. The Android helper and the server version (Step 7, covered by
+  OpenScan Cloud) are dropped. `tools/upstream-baseline.json` now also
+  watches the client's `app/src/stores/apiConfig.ts`.
 
 ### Fixed
 

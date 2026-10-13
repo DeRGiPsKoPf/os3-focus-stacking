@@ -1,6 +1,6 @@
 # Roadmap: Focus Stacking outside the Pi
 
-Status: 2026-09-28. This file is the starting point for every new session —
+Status: 2026-10-14. This file is the starting point for every new session —
 read it first, update it at the end.
 
 ## Goal
@@ -29,17 +29,19 @@ device on the same network.
 | Who serves the page | Who computes | When it makes sense |
 |---|---|---|
 | **Pi** (default) | **Browser** on the PC | no installation, the default case |
-| **Pi** | **Helper**, if reachable locally (`localhost:<port>` responds) | large scans, once the helper is available |
-| own Helper | Helper | special case, more relevant for server/Step 7 |
+| **Helper** on the PC (proxies the Pi's own UI at `localhost:8742`) | **Helper** | large scans, runs that must outlive the tab, any browser |
 
-The middle row is a **later expansion** (see Step 6a): on load, the page
-automatically checks whether a helper is running locally, and then uses it
-transparently instead of browser computation — no manual switching, no
-typing addresses. Until the helper runs on all target platforms, "browser
-computes" remains the only path.
+The second row is a **later expansion** (Steps 6/6a). The helper never
+reimplements OS3's UI: it serves the Pi's own OpenScan3-Client unchanged
+through a local reverse proxy, so the page and the helper share one origin.
+The Stacking tab detects the helper with a same-origin request and turns on
+helper features per capability — no manual switching, no typing addresses.
+Opened from the Pi directly, the tab computes in the browser as before.
+Until the helper runs on all target platforms, "browser computes" remains
+the only path.
 
-**Priority order of compute paths:** (1) Browser, (2) Helper on Windows +
-Mac, (3) Android only if at all — see Step 6a.
+**Priority order of compute paths:** (1) Browser, (2) Helper on Windows,
+macOS and Linux — all three equal targets, see Step 6.
 
 All compute paths receive the same job and return the same result (see the
 interface in Step 0).
@@ -70,8 +72,8 @@ interface in Step 0).
   numbers (WGSL calls it `mat3x2`).
 - **8 bits per color channel to start, and permanently for the
   browser/helper base version.** 16-bit is **not** a near-term expansion
-  step anymore — it's clearly assigned to the future helper+server
-  collaboration (see the dedicated section below). 8-bit keeps the live
+  step anymore — it's clearly assigned to a future helper expansion (see the
+  dedicated section below). 8-bit keeps the live
   scenario (400×12×16MP) at ~50–70 GB instead of 100–350 GB — that's what
   keeps the browser path realistically usable for the live case.
 - **Live stacking during the scan, anchored in the browser part.** As soon as
@@ -92,6 +94,12 @@ interface in Step 0).
   tab/route next to the existing scan UI, built and shipped as part of the
   same Vue project. Goal: mergeable upstream as a PR without touching
   existing code beyond one route, one navigation entry and i18n strings.
+- **Helper scope: small companion, not a control app.** The helper never
+  reimplements scanner control, live view or scan setup — those stay in
+  OpenScan3-Client, served by the Pi. It adds only what a browser can't do
+  well, hosts the Pi's own UI through a local reverse proxy, never moves
+  hardware or starts scans, and is optional by design. Details and
+  rationale: the dedicated section below.
 - **Development against current upstream, no long-lived fork.** The client is
   developed in a plain clone of upstream `OpenScan3-Client` at `client/`
   (gitignored, its own repository), on a feature branch that is rebased onto
@@ -114,11 +122,78 @@ interface in Step 0).
   (see the HTTPS section). Helper compute path: a fixed path as a text
   field in settings, since the helper is a standalone program with
   unrestricted file access anyway (jobs only carry relative file names; the
-  root is set in the helper, the tab can change it only after pairing).
+  root is set in the helper, the tab can change it through the helper's
+  same-origin API).
 
-### On the 16-bit question (clearly deferred: helper+server expansion, not near-term)
+### On the helper's scope (small companion, not a control app)
 
-- Belongs thematically to Step 6/7 (helper, server), not the browser core.
+The helper could in principle take over OS3's whole control interface —
+scanner control, live view, scan setup — as a desktop app that replaces the
+scanner's web interface. It deliberately doesn't:
+
+- **No second OS3 client to maintain.** The OS3 API is still moving fast
+  (the firmware mounts `/v0.8`, `/v0.9`, `/latest` and `/next` side by side;
+  the client carries generated SDKs for all four). A second control UI would
+  have to follow every firmware change and would soon cost more than the
+  stacking itself.
+- **Contributes to upstream instead of competing with it.** The goal is a PR
+  that adds one route and one nav entry; a parallel control app can't be
+  merged into anything.
+- **Installation stays optional.** Anyone can still open the Pi's address
+  from any device on the network and stack in the browser.
+- **One UI, one master.** No second program that also drives the motors and
+  the camera, so no locking or state sync between two UIs.
+- **Small attack surface.** A local service that can move hardware and is
+  reachable from web pages is a much more attractive target than one that
+  computes images.
+
+**How it works.** The helper listens on `127.0.0.1:8742` only and
+reverse-proxies the Pi's UI and API there (`/` and `/api/…`, including
+WebSockets and the MJPEG camera preview, to exactly one configured Pi). Its
+own API lives under `/helper/v1/…` on the same origin. That avoids CORS,
+origin pairing and Chrome's still-changing Local Network Access rules for
+cross-origin requests to `127.0.0.1`; `localhost` is always a secure
+context; and the UI always matches the Pi's firmware because it comes from
+the Pi itself. The Stacking tab probes `GET /helper/v1/health` and shows
+each helper feature only if the helper reports the matching capability.
+Only the Stacking tab knows about the helper — every other OS3 page behaves
+exactly as upstream ships it. The helper never moves hardware or starts
+scans; its only write to the Pi is the existing two-stage deletion. If it
+goes away mid-run, the scan on the Pi carries on unaffected; after a
+restart the helper resumes from the run file (spec §5.4).
+
+**What changes when the helper is detected:**
+
+| Area | Browser only | With helper |
+|---|---|---|
+| Compute | WebGPU/Pyodide inside the tab | Native multi-core OpenCV, same code as the reference |
+| Run lifetime | Tab must stay open (`beforeunload` warning) | Run lives in the helper; the tab can close and reconnect later; resumes after a crash |
+| Storage | Folder dialog (Chromium only), else downloads | Fixed output folder, in any browser |
+| Two-stage deletion | Only with the folder dialog | Always (helper verifies by re-reading) |
+| Secure context | Needs HTTPS on the Pi | Always (`localhost`) |
+| Large scans | Limited by tab memory and GPU texture size | Limited by disk and RAM |
+| Later, each behind its own flag (not scheduled) | — | 16-bit/TIFF/RAW (see the 16-bit section), "open output folder", background masks, photogrammetry project export (Metashape/RealityCapture/Meshroom folder layout) |
+
+Basic stacking never requires a helper-only feature.
+
+**Known costs**, handled in Step 6:
+
+- Outside developer mode, the client builds its API URL from
+  `window.location.hostname` without the port (`app/src/stores/apiConfig.ts`),
+  so a page at `localhost:8742` would call port 80. Fix: a small, separate
+  upstream PR that keeps the page's port. Until then: developer mode with
+  host `localhost`, port `8742`; the helper also proxies the developer-mode
+  paths (`/v0.9/…`, `/latest/…`, `/next/…`) to the Pi's `/api/…`.
+- Until the Stacking-tab PR is merged, the Pi's UI has no Stacking tab. For
+  that window only, the helper may serve a bundled client build while still
+  proxying the API (transitional — it brings back the version-mismatch risk).
+- The proxy must stream the MJPEG preview and the WebSockets without
+  buffering, and pin the Pi's (usually self-signed) HTTPS certificate on
+  first connect.
+
+### On the 16-bit question (clearly deferred: helper expansion, not near-term)
+
+- Belongs thematically to the helper (Step 6), not the browser core.
 - The interface must still always carry the number format as a parameter,
   never assume it — costs nothing now, prevents silent 8-bit assumptions in
   the code, and keeps the path open for the later expansion.
@@ -127,9 +202,8 @@ interface in Step 0).
   the expansion.
 - At 16-bit, the browser can't read TIFF/RAW itself (needs a WASM decoder,
   e.g. libtiff/libraw), the data volume doubles, the helper becomes
-  practically mandatory for large scans — fits together with server/Step 7,
-  where memory and compute power aren't the browser's problem anymore
-  anyway.
+  practically mandatory for large scans — which fits, since in the helper
+  memory and compute power aren't the browser's problem anymore anyway.
 
 ### On the HTTPS question: the only foreseeable firmware/system intervention
 
@@ -161,9 +235,14 @@ a single, clearly scoped building block.
 
 ## Open decisions
 
-- Input format for a future 16-bit expansion (helper+server): 16-bit TIFF or
+- Input format for a future 16-bit expansion (helper): 16-bit TIFF or
   RAW/DNG directly (smaller, but needs demosaicing)? Only relevant once
-  Step 6/7 comes up.
+  Step 6 comes up.
+- Upstream PR for a port-aware API URL in OpenScan3-Client's
+  `app/src/stores/apiConfig.ts` (prerequisite for the helper-hosted UI
+  without developer mode). Separate from the Stacking-tab PR.
+- Pi address in the helper: typed once (pre-filled with OS3's default host)
+  vs. mDNS discovery. Decide in Step 6.
 - Write results back to the Pi? OS3 has no endpoint for that. Not a
   priority — results stay on the PC/chosen storage target. An additive PR
   against OS3 would be possible, but is its own, separate undertaking.
@@ -224,7 +303,9 @@ passed through the interface.
   only after a byte-exact re-read, which gates deletion.
 - Helper detection: `GET http://127.0.0.1:8742/v1/health`, with one-time
   pairing per page origin in the helper's own window, in
-  `docs/spec/helper-http-api.md`.
+  `docs/spec/helper-http-api.md`. **Superseded 2026-10-14** by the
+  same-origin model (helper proxies the Pi's UI, see "On the helper's
+  scope"); the spec is rewritten at the start of Step 6.
 - Folder structure: see `AGENTS.md`. Instead of a fork, a plain upstream clone
   at `client/` from Step 3 on; fork only when pushing.
 - Upstream tracking: `tools/check_upstream.py` + `tools/upstream-baseline.json`.
@@ -398,32 +479,44 @@ the Pi system configuration.
 **Test:** compare against Step 4. Small deviations from different rounding
 are acceptable, the benchmark is the table from Step 2.
 
-### Step 6 — Helper for large scans, order: Windows + Mac first
-**Model:** Sonnet
-A Python program that offers the same interface over HTTP, fetches the
-images itself from the Pi, and provides a minimal control API
-(start/pause/stop) for the Pi-hosted UI. Runs as its own process, not
-started by the browser — a double-click icon to launch it. Fixed storage
-path as a setting. Linux comes along for free (same Python code), but
-priority is Windows/Mac since that's where actual usage happens.
-**Test:** a full scan from the Pi, verify abort and resume.
+### Step 6 — Helper: proxy, compute, runs (Windows, macOS, Linux)
+**Model:** Opus for the proxy/security design, Sonnet for the rest
+A Python program (`os3stack.helper`) with a small window/tray icon, scoped as
+described in "On the helper's scope". It (1) reverse-proxies the Pi's UI and
+API at `http://localhost:8742/` — HTTP, WebSocket and the MJPEG camera
+preview — to exactly one configured Pi (TLS certificate pinned on first
+use); (2) serves its own API under `/helper/v1/` (compute jobs, runs with
+start/pause/resume/cancel, config); (3) writes results below a fixed output
+root and verifies each file by re-reading it. Runs as its own process,
+started by double-click; "Open OpenScan" opens the browser at the proxied
+UI. **Windows, macOS and Linux are equal targets**: built, packaged and
+tested on all three.
+Starts by rewriting `docs/spec/helper-http-api.md` and
+`docs/spec/compute-interface.md` §2/§6 to the same-origin model (routes under
+`/helper/v1/`; the pairing/CORS text moves to an appendix "deferred
+cross-origin mode"; security: listen on `127.0.0.1` only, accept only
+`Host: localhost`/`127.0.0.1`, no CORS headers on the helper API,
+state-changing requests need the helper's own `Origin` plus a custom
+header, never an open proxy).
+**Prerequisite:** the port-aware API URL (see "Known costs" above and open
+decisions); until it's merged, developer mode.
+**Test:** on each of Windows, macOS and Linux, a full scan from the
+helper-hosted UI: scan control, live preview and WebSocket progress work
+through the proxy unchanged; stacking runs in the helper; close the tab
+mid-run and reconnect; kill the helper mid-run and resume.
 
-### Step 6a — Automatic helper detection + Android (lowest priority)
+### Step 6a — Helper detection and capability unlocking
 **Model:** Sonnet
-The Pi-hosted page checks on load whether `localhost:<port>` (helper)
-responds, and then uses it automatically instead of browser computation —
-no manual switch. Only build this once Step 6 runs on Windows and Mac.
-**Android: lowest priority, only if at all.** No Python background process
-like on desktop is possible (Android doesn't allow loose background
-services without their own app) — an Android helper would be its own app,
-not a port, and a fully separate undertaking. Until then (and that's the
-default case anyway, see the priority order above), Android only gets the
-browser compute path (Step 4/5).
-
-### Step 7 — Server
-**Model:** Sonnet
-The same helper on a server, plus login. The UI stays unchanged. This is
-also where the 16-bit question becomes relevant again, see above.
+The Stacking tab calls `GET /helper/v1/health` (relative URL, same origin,
+1 s timeout) on load and on request. Absent → browser backends;
+incompatible interface version → banner + browser backends; present →
+helper backend, with each helper feature shown only if its capability flag
+is present (table in "On the helper's scope"). Opened from the Pi directly,
+the tab shows a small hint linking to `localhost:8742` instead of probing
+cross-origin (a plain link — top-level navigation isn't gated like `fetch`).
+The cross-origin probe with pairing (Step 0's original design) is deferred;
+build it only if the helper turns out to be needed from the Pi-served page.
+Build this only once Step 6 runs on Windows, macOS and Linux.
 
 ## Notes
 
@@ -439,6 +532,13 @@ also where the 16-bit question becomes relevant again, see above.
   with a list of file names — already exists, no firmware change needed.
 - No endpoint to write finished images back to the Pi (only cloud upload via
   `POST /projects/{name}/upload`).
+- No server version of the helper: server-side processing is already
+  covered by OpenScan Cloud (that same upload endpoint).
+- Client API URL: outside developer mode, `app/src/stores/apiConfig.ts`
+  builds `${scheme}://${hostname}/api/${version}` (no port); on the
+  appliance image, nginx maps `/api/` to the firmware. WebSockets live under
+  the same prefix (`…/ws/tasks`, `…/ws/device`). Tracked by
+  `tools/check_upstream.py`.
 - OS3 stores the alignment matrices as JSON under
   `scanXX/stacked/calibration_scanXX.json`.
 - Bug in the original code: `FocusStacker.calibrate()` doesn't set

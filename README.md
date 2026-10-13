@@ -27,8 +27,10 @@ ends, only the very last position is still waiting.
   just where and when they get computed.
 - **Tiled from the start**, so it scales to a full-resolution camera sensor,
   not just small previews.
-- A **local helper program** (planned) will pick up the same job over HTTP
-  for scans too large to stack in the browser alone.
+- A **small local helper program** (planned, Windows/macOS/Linux) will pick
+  up the same job for scans too large to stack in the browser alone. It's
+  optional and doesn't replace the OS3 interface: it serves the Pi's own UI
+  and only adds compute, storage and runs that outlive the browser tab.
 
 See [ROADMAP.md](ROADMAP.md) for the full plan and the reasoning behind
 every decision — bit depth, calibration batches, safe deletion, HTTPS,
