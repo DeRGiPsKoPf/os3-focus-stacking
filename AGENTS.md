@@ -96,11 +96,11 @@ os3-focus-stacking/            (this repo)
   only a pointer to them now.
 - Test scans are never stored in the repo; scripts take their location as an
   argument.
-- The working copy lives at `C:\dev\os3-focus-stacking` (moved off Google
-  Drive on 2026-09-28: `npm install` failed there reproducibly because the
-  Drive sync client locks files in `node_modules` while npm writes them).
-  Keep it — and especially `client/app/node_modules` and `python/.venv` — out
-  of cloud-synced folders.
+- Keep the working copy — and especially `client/app/node_modules` and
+  `python/.venv` — out of cloud-synced folders (e.g. Google Drive): a sync
+  client can lock files in `node_modules` mid-write and make `npm install`
+  fail reproducibly (`EPERM`/`EBADF`). Moved off Google Drive to a local
+  folder on 2026-09-28 for this reason.
 
 ## Upstream tracking
 

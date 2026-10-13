@@ -35,9 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The working copy moved from Google Drive to `C:\dev\os3-focus-stacking`:
-  Drive's sync client locked files in `node_modules` mid-write and made
-  `npm install` fail reproducibly.
+- The working copy moved off Google Drive to a local folder: Drive's sync
+  client locked files in `node_modules` mid-write and made `npm install`
+  fail reproducibly.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 # Roadmap: Focus Stacking outside the Pi
 
-Status: 2026-09-27. This file is the starting point for every new session —
+Status: 2026-09-28. This file is the starting point for every new session —
 read it first, update it at the end.
 
 ## Goal
@@ -451,9 +451,8 @@ also where the 16-bit question becomes relevant again, see above.
   index (not the capture order, the path gets optimised), `SS` starts at 0.
   OS3 saves every photo of a position before it reports that position's
   progress over `/ws/tasks`.
-- The working copy lives at `C:\dev\os3-focus-stacking`. It started out in
-  Google Drive, but in Step 3 `npm install` failed there reproducibly
-  (`EPERM`/`EBADF`: the Drive sync client locks files in `node_modules` while
-  npm writes them), so the whole project moved to a local folder on
-  2026-09-28. Test scans are supplied from elsewhere and never stored in the
-  repo.
+- The working copy started out in Google Drive, but in Step 3 `npm install`
+  failed there reproducibly (`EPERM`/`EBADF`: the Drive sync client locks
+  files in `node_modules` while npm writes them), so the whole project moved
+  to a local folder on 2026-09-28. Test scans are supplied from elsewhere and
+  never stored in the repo.
