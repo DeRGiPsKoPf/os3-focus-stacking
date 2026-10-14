@@ -101,8 +101,9 @@ interface in Step 0).
   hardware or starts scans, and is optional by design. Details and
   rationale: the dedicated section below.
 - **Development against current upstream, no long-lived fork.** The client is
-  developed in a plain clone of upstream `OpenScan3-Client` at `client/`
-  (gitignored, its own repository), on a feature branch that is rebased onto
+  developed in a plain clone of upstream `OpenScan3-Client`, its own
+  repository checked out next to this one (`../os3-stacking-client`; until
+  2026-10-14 it lived inside this repo as `client/`), on a feature branch that is rebased onto
   upstream regularly. A GitHub fork is only created when pushing is needed
   (backup, PR). `tools/check_upstream.py` reports upstream changes to every
   firmware and client file the spec depends on; run it at the start of each

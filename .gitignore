@@ -1,6 +1,7 @@
 roadmap-focus-stacking.md
 
-# Local clone of OpenScan3-Client — its own repository (see AGENTS.md)
+# Old location of the OpenScan3-Client clone; it now lives next to this repo as
+# ../os3-stacking-client (see AGENTS.md). Kept so an old client/ stays out of git.
 client/
 
 # Python

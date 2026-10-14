@@ -1,6 +1,6 @@
 # Handoff – current state of work
 
-**Updated:** 2026-10-14 · branch `main`, in sync with `origin/main` (public) · checked on the maintainer's laptop
+**Updated:** 2026-10-14 · branch `main`, in sync with `origin/main` (public) · last checked on the maintainer's desktop
 
 ## Current goal
 
@@ -13,13 +13,14 @@ warning, resume from the run file. Not started yet.
 | What | Where | State |
 |---|---|---|
 | This repo | GitHub `DeRGiPsKoPf/os3-focus-stacking`, `main` | up to date |
-| Step 3 client work | `client/` inside the working copy (OpenScan3-Client clone), branch `feature/stacking-tab`, commit `e81ec19` | pushed to the **private** backup repo `DeRGiPsKoPf/os3-stacking-client` (remote `backup`, Discussions enabled); `origin` stays upstream. A public fork is created only for the upstream PR. |
+| Step 3 client work | own repo `DeRGiPsKoPf/os3-stacking-client` (private), branch `feature/stacking-tab`, commit `e81ec19`, checked out next to this repo as `%USERPROFILE%\Projects\os3-stacking-client` | in sync with GitHub; remotes `origin` = upstream, `backup` = private repo. A public fork is created only for the upstream PR. Its own `HANDOFF.md` tracks the client state. |
 | Base of the client branch | upstream `develop` at `d4da05e` (release 0.8.0) | upstream `develop` hasn't moved since (checked 2026-10-14) – no rebase needed |
 
-The laptop's working copy is `%USERPROFILE%\Projects\os3-focus-stacking`. On 2026-10-14 everything moved there from the
-old `C:\dev\os3-focus-stacking`: `client/` (incl. `node_modules`), `stack example/` (the 4-photo test bracket from
-Steps 1/2) and `roadmap-focus-stacking.md`, all gitignored. `C:\dev` is retired. `python/.venv` was not moved (venvs
-hold absolute paths); recreate it before running tests.
+Working copies: `%USERPROFILE%\Projects\os3-focus-stacking` and `%USERPROFILE%\Projects\os3-stacking-client` side by
+side. Until 2026-10-14 the client lived inside this repo as `client/` (still gitignored). **On the laptop it is still
+there:** move it out to `%USERPROFILE%\Projects\os3-stacking-client` (or delete it and clone the backup repo there),
+then `git pull` in both. Gitignored, laptop only: `stack example/` (the 4-photo test bracket from Steps 1/2) and
+`roadmap-focus-stacking.md`. `python/.venv` exists on neither machine yet; recreate it before running tests.
 
 ## Last state
 
@@ -49,7 +50,8 @@ hold absolute paths); recreate it before running tests.
 
 - GitHub may keep the pre-rewrite commits reachable by their old hash for a while (unreferenced, not in any branch).
   Only GitHub Support can purge them early.
-- `npm run dev`/`build` in the moved `client/` hasn't been re-run since the move (git state verified identical).
+- `npm run dev`/`build` hasn't been re-run since the client moved (git state verified identical); on the desktop
+  `npm install` hasn't been run yet.
 - `tools/check_upstream.py` fails with "not a git repository" if its default cache folder in `%TEMP%` survives without
   its `.git` (seen 2026-10-14). Workaround: delete that folder or pass `--cache <empty dir>`.
 - `docs/spec/helper-http-api.md` and spec §2/§6 still describe the superseded cross-origin pairing model; to be

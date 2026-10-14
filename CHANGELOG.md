@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The OpenScan3-Client clone is now its own repository (`os3-stacking-client`),
+  checked out next to this one instead of inside it as `client/`. Docs and the
+  `compute-interface.ts` pointer refer to `../os3-stacking-client`.
 - The working copy moved off Google Drive to a local folder: Drive's sync
   client locked files in `node_modules` mid-write and made `npm install`
   fail reproducibly.

@@ -14,9 +14,10 @@ firmware stays untouched. Audience: OpenScan3 users; maintainer is DeRGiPsKoPf.
 ## Tech stack
 
 - **Python ≥ 3.11** reference implementation `os3stack` (`python/`): numpy, opencv-python-headless; pytest.
-- **Client work** (Step 3+): Vue 3 + Quasar + Pinia + TypeScript in a local clone of `OpenScan3-Client` at `client/`
-  (gitignored, its own repo), branch `feature/stacking-tab` based on upstream `develop`. Needs **Node 22**. Not part
-  of this repository – where it currently lives and whether it's pushed: `HANDOFF.md`.
+- **Client work** (Step 3+): Vue 3 + Quasar + Pinia + TypeScript in its own repository
+  `DeRGiPsKoPf/os3-stacking-client` (private), checked out **next to** this one as `../os3-stacking-client`, branch
+  `feature/stacking-tab` based on upstream `OpenScan3-Client` `develop`. Needs **Node 22**. It has its own
+  `CLAUDE.md`/`HANDOFF.md` for client-specific details.
 - Planned compute paths: Pyodide (Step 4), WebGPU (Step 5), a local Python helper (Step 6).
 - License GPL-3.0 (matches OpenScan3 and OpenScan3-Client).
 
@@ -36,8 +37,9 @@ python/src/os3stack/
   cli.py          `os3stack stack` and `os3stack compare`
 python/tests/     unit tests on synthetic images (_synthetic.py)
 tools/check_upstream.py + upstream-baseline.json   reports upstream changes to files the spec depends on
-client/           (gitignored) OpenScan3-Client clone, branch feature/stacking-tab
 ```
+
+Sibling folder `../os3-stacking-client`: the OpenScan3-Client clone with the Stacking tab (own repo, see above).
 
 Alignment (CPU, once per scan) and merging (moves to GPU/browser later) are separate stages; every compute path takes
 the same `StackJob` and must produce the same result as the Python reference.
@@ -52,7 +54,7 @@ the same `StackJob` and must produce the same result as the Python reference.
   showed up there.
 - **Commits:** subject `Step N: …`, `Docs: …`, `Roadmap: …` (≤ ~70 chars), blank line, body explaining why.
   Notable changes also go into `CHANGELOG.md` (Keep a Changelog). Commits made by Claude end with `Co-Authored-By`.
-  Commits in `client/` follow upstream's conventional style instead (`feat(stacking): …`).
+  Commits in `os3-stacking-client` follow upstream's conventional style instead (`feat(stacking): …`).
 - **Author identity, in both repos:** `DeRGiPsKoPf <91803747+DeRGiPsKoPf@users.noreply.github.com>` only (set as
   local git config). Never commit with a real name or private email address, and never write either into the repo.
 - Client code only in `app/src/stacking/`, `app/src/pages/StackingPage.vue`, `app/src/components/stacking/`;
@@ -71,8 +73,8 @@ pip install -e ".[dev]"
 pytest
 os3stack stack <scan-dir> [--tile-width W --tile-height H --tile-overlap O] [--calibration FILE]
 os3stack compare <image-a> <image-b>
-# client (Step 3+, needs the local clone and Node 22)
-cd client/app && npm install && npm run dev     # or: npm run build (runs ESLint as a gate)
+# client (Step 3+, needs ../os3-stacking-client and Node 22)
+cd ../os3-stacking-client/app && npm install && npm run dev     # or: npm run build (runs ESLint as a gate)
 ```
 
 No linter configured for `python/`. If `pip` fails with `SSLEOFError`, see `python/README.md`.
@@ -92,7 +94,7 @@ No linter configured for `python/`. If `pip` fails with `SSLEOFError`, see `pyth
   tile's cropped pixels (Step 2, two bugs deep). WebGPU will need the low-res variant with width/height padded to multiples of 4.
 - **Upstream bug:** `FocusStacker.calibrate()` doesn't set `self.transforms` – pass matrices explicitly.
 - Photo names `scanXX_NNN_fsSS.jpg`: `NNN` is OS3's path index, not capture order; `SS` is 0-based.
-- Keep the working copy (`client/app/node_modules`, `python/.venv`) out of cloud-synced folders (`EPERM`/`EBADF` on npm install).
+- Keep the working copies (`os3-stacking-client/app/node_modules`, `python/.venv`) out of cloud-synced folders (`EPERM`/`EBADF` on npm install).
 
 ## Do not touch / handle with care
 

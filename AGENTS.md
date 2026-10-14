@@ -85,13 +85,15 @@ os3-focus-stacking/            (this repo)
 │   ├── pyproject.toml
 │   ├── src/os3stack/          port of OS3 stacking.py, tiling, compare tool, reference CLI, helper/
 │   └── tests/
-└── client/                    local clone of OpenScan3-Client (gitignored, own repo; Step 3+)
+os3-stacking-client/           sibling folder: OpenScan3-Client clone with the Stacking tab (own repo; Step 3+)
 ```
 
-- `client/` is a plain clone of the upstream `OpenScan3-Client`, not a
-  submodule. Our work lives on a feature branch there, rebased regularly
-  onto upstream. A GitHub fork is added as a second remote only when pushing
-  is needed (backup/PR); install the `gh` CLI at that point.
+- `os3-stacking-client` is a plain clone of the upstream `OpenScan3-Client`,
+  checked out next to this repo (not inside it, not a submodule). Our work
+  lives on branch `feature/stacking-tab`, rebased regularly onto upstream.
+  Remotes: `origin` = upstream `OpenScan-org/OpenScan3-Client`, `backup` =
+  the private `DeRGiPsKoPf/os3-stacking-client`. A public fork is created
+  only for the upstream PR.
 - Client code goes to `app/src/stacking/`, `app/src/pages/StackingPage.vue`,
   `app/src/components/stacking/`. Touch points in existing client code stay
   minimal: one route in `app/src/router/routes.ts`, one nav entry in
@@ -104,7 +106,7 @@ os3-focus-stacking/            (this repo)
   only a pointer to them now.
 - Test scans are never stored in the repo; scripts take their location as an
   argument.
-- Keep the working copy — and especially `client/app/node_modules` and
+- Keep the working copies — and especially `os3-stacking-client/app/node_modules` and
   `python/.venv` — out of cloud-synced folders (e.g. Google Drive): a sync
   client can lock files in `node_modules` mid-write and make `npm install`
   fail reproducibly (`EPERM`/`EBADF`). Moved off Google Drive to a local
@@ -159,7 +161,7 @@ See [ROADMAP.md](ROADMAP.md) for full detail per step. Summary of what
 - `showDirectoryPicker`, `crypto.subtle` and WebGPU need a secure context
   (HTTPS or localhost). The client dev server on localhost qualifies.
 - Client development needs Node 22 (`package.json` requires `^22 || ^20`, so
-  not the current LTS 24): `cd client/app`, `npm install`, then `npm run dev`
+  not the current LTS 24): `cd ../os3-stacking-client/app`, `npm install`, then `npm run dev`
   (localhost) or `npm run build`. The build runs ESLint as a gate; the client
   does not type-check `.vue` files, and upstream already has `tsc` errors of
   its own — check only that none come from `src/stacking` or our pages.
