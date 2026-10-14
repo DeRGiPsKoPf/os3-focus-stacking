@@ -91,9 +91,9 @@ os3-stacking-client/           sibling folder: OpenScan3-Client clone with the S
 - `os3-stacking-client` is a plain clone of the upstream `OpenScan3-Client`,
   checked out next to this repo (not inside it, not a submodule). Our work
   lives on branch `feature/stacking-tab`, rebased regularly onto upstream.
-  Remotes: `origin` = upstream `OpenScan-org/OpenScan3-Client`, `backup` =
-  the private `DeRGiPsKoPf/os3-stacking-client`. A public fork is created
-  only for the upstream PR.
+  Remotes: `origin` = the private `DeRGiPsKoPf/os3-stacking-client` (a plain
+  clone sets this up), `upstream` = `OpenScan-org/OpenScan3-Client` (add it
+  once, push URL disabled). A public fork is created only for the upstream PR.
 - Client code goes to `app/src/stacking/`, `app/src/pages/StackingPage.vue`,
   `app/src/components/stacking/`. Touch points in existing client code stay
   minimal: one route in `app/src/router/routes.ts`, one nav entry in

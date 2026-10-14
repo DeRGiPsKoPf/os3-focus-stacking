@@ -13,13 +13,13 @@ warning, resume from the run file. Not started yet.
 | What | Where | State |
 |---|---|---|
 | This repo | GitHub `DeRGiPsKoPf/os3-focus-stacking`, `main` | up to date |
-| Step 3 client work | own repo `DeRGiPsKoPf/os3-stacking-client` (private), branch `feature/stacking-tab`, commit `e81ec19`, checked out next to this repo as `%USERPROFILE%\Projects\os3-stacking-client` | in sync with GitHub; remotes `origin` = upstream, `backup` = private repo. A public fork is created only for the upstream PR. Its own `HANDOFF.md` tracks the client state. |
+| Step 3 client work | own repo `DeRGiPsKoPf/os3-stacking-client` (private), branch `feature/stacking-tab`, commit `e81ec19`, checked out next to this repo as `%USERPROFILE%\Projects\os3-stacking-client` | in sync with GitHub; remotes `origin` = private repo, `upstream` = OpenScan3-Client (push disabled). A public fork is created only for the upstream PR. Its own `HANDOFF.md` tracks the client state. |
 | Base of the client branch | upstream `develop` at `d4da05e` (release 0.8.0) | upstream `develop` hasn't moved since (checked 2026-10-14) – no rebase needed |
 
 Working copies: `%USERPROFILE%\Projects\os3-focus-stacking` and `%USERPROFILE%\Projects\os3-stacking-client` side by
 side. Until 2026-10-14 the client lived inside this repo as `client/` (still gitignored). **On the laptop it is still
-there:** move it out to `%USERPROFILE%\Projects\os3-stacking-client` (or delete it and clone the backup repo there),
-then `git pull` in both. Gitignored, laptop only: `stack example/` (the 4-photo test bracket from Steps 1/2) and
+there:** delete it once `%USERPROFILE%\Projects\os3-stacking-client` exists (a Claude Code session started in `Projects`
+clones it automatically; check first that the old copy has nothing unpushed), then `git pull` in both. Gitignored, laptop only: `stack example/` (the 4-photo test bracket from Steps 1/2) and
 `roadmap-focus-stacking.md`. `python/.venv` exists on neither machine yet; recreate it before running tests.
 
 ## Last state
