@@ -23,15 +23,18 @@ hold absolute paths); recreate it before running tests.
 
 ## Last state
 
-- `5b4ca2f` `CLAUDE.md` and `HANDOFF.md` added; this update corrects them to the actual state on the laptop.
-- `d4ea2e1`, `e328783` `ROADMAP.md`: helper scope fixed as a small same-origin companion (`localhost:8742`);
+- 2026-10-14: **history rewritten and force-pushed** so every commit shows only the noreply identity (no content
+  changes except two scrubbed doc lines in `688b8eb`). All hashes from before that date changed; other clones must be
+  re-cloned. Hashes below are the new ones.
+- `14585b7`, `688b8eb` `CLAUDE.md` and `HANDOFF.md` added, then corrected to the actual state on the laptop.
+- `f99138f`, `2b0a781` `ROADMAP.md`: helper scope fixed as a small same-origin companion (`localhost:8742`);
   Android helper and server version dropped; Windows/macOS/Linux equal targets. `CHANGELOG.md` updated.
-- `0875e8f`, `5d832e1` `README.md`: intro rewritten, status refreshed, local path removed.
+- `b87f83c`, `6b095d4` `README.md`: intro rewritten, status refreshed, local path removed.
 - 2026-10-14: client commit re-authored to the noreply identity (`4d40a6a` → `e81ec19`, same content) and pushed to
   the private backup repo; both repos now use `DeRGiPsKoPf <…@users.noreply.github.com>` as local git identity.
-- `82a9800` **Step 3**: Stacking tab against a mock compute backend (client commit now `e81ec19`, 8 files, +1008 lines:
+- `e2fb045` **Step 3**: Stacking tab against a mock compute backend (client commit now `e81ec19`, 8 files, +1008 lines:
   `app/src/stacking/`, `StackingPage.vue`, `components/stacking/StackingResultCard.vue`, one route, one nav entry).
-- `88e0cb2`, `a8b4df8` **Step 2**: tiled merging, exact for any image size (`python/src/os3stack/stack.py`, `tiling.py`).
+- `853630f`, `3d64931` **Step 2**: tiled merging, exact for any image size (`python/src/os3stack/stack.py`, `tiling.py`).
 - 2026-10-14: `python tools/check_upstream.py` run – watched files unchanged in both upstream repos (OpenScan3
   `develop` has 7 new commits since the baseline, none touching watched files; OpenScan3-Client `main` unchanged).
   Python tests were not run.
@@ -44,8 +47,8 @@ hold absolute paths); recreate it before running tests.
 
 ## Known problems
 
-- Older commits already on GitHub in this repo (up to `5b4ca2f`) carry a private author email instead of the noreply
-  address. Removing it needs a history rewrite + force push – pending the maintainer's decision.
+- GitHub may keep the pre-rewrite commits reachable by their old hash for a while (unreferenced, not in any branch).
+  Only GitHub Support can purge them early.
 - `npm run dev`/`build` in the moved `client/` hasn't been re-run since the move (git state verified identical).
 - `tools/check_upstream.py` fails with "not a git repository" if its default cache folder in `%TEMP%` survives without
   its `.git` (seen 2026-10-14). Workaround: delete that folder or pass `--cache <empty dir>`.
