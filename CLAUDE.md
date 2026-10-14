@@ -15,7 +15,8 @@ firmware stays untouched. Audience: OpenScan3 users; maintainer is DeRGiPsKoPf.
 
 - **Python ≥ 3.11** reference implementation `os3stack` (`python/`): numpy, opencv-python-headless; pytest.
 - **Client work** (Step 3+): Vue 3 + Quasar + Pinia + TypeScript in a local clone of `OpenScan3-Client` at `client/`
-  (gitignored, its own repo). Needs **Node 22**. Not part of this repository.
+  (gitignored, its own repo), branch `feature/stacking-tab` based on upstream `develop`. Needs **Node 22**. Not part
+  of this repository – where it currently lives and whether it's pushed: `HANDOFF.md`.
 - Planned compute paths: Pyodide (Step 4), WebGPU (Step 5), a local Python helper (Step 6).
 - License GPL-3.0 (matches OpenScan3 and OpenScan3-Client).
 
@@ -51,6 +52,9 @@ the same `StackJob` and must produce the same result as the Python reference.
   showed up there.
 - **Commits:** subject `Step N: …`, `Docs: …`, `Roadmap: …` (≤ ~70 chars), blank line, body explaining why.
   Notable changes also go into `CHANGELOG.md` (Keep a Changelog). Commits made by Claude end with `Co-Authored-By`.
+  Commits in `client/` follow upstream's conventional style instead (`feat(stacking): …`).
+- **Author identity, in both repos:** `DeRGiPsKoPf <91803747+DeRGiPsKoPf@users.noreply.github.com>` only (set as
+  local git config). Never commit with a real name or private email address, and never write either into the repo.
 - Client code only in `app/src/stacking/`, `app/src/pages/StackingPage.vue`, `app/src/components/stacking/`;
   touch points in existing client code: one route, one nav entry. Missing ESLint globals per file via `/* global */`.
 - At the end of every session update only `HANDOFF.md` (and step status in `ROADMAP.md` when a step completes);
@@ -60,6 +64,7 @@ the same `StackJob` and must produce the same result as the Python reference.
 
 ```bash
 python tools/check_upstream.py            # at the start of every step; --diff shows the full diff
+                                          # "not a git repository"? stale cache – pass --cache <empty dir>
 cd python
 python -m venv .venv && .venv\Scripts\activate     # Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev]"
