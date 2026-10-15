@@ -304,6 +304,41 @@ On (re)start the orchestrator reads `stacking_run_scanXX.json` and skips
 positions whose output file exists and matches the recorded length and hash.
 This mirrors OS3's own resume logic.
 
+- **Calibration is reused, never recomputed,** when `calibration_scanXX.json`
+  exists with `formatVersion` 1 and the scan's `stackSize`: every result of a
+  scan must be merged with the same matrices. Without a usable calibration
+  record nothing is resumed.
+- **A new calibration starts a new run file** (empty `positions`), so results
+  merged with other matrices are never continued from.
+- Entries whose file is missing or differs in length or SHA-256 (fresh read
+  through the storage target) are dropped and the position is stacked again.
+- The run file is rewritten after every position, so a crash loses at most
+  the position in progress. Run files of a different `backend` are not
+  continued from.
+- Only targets that can be re-read (`directory-handle`, `helper-directory`)
+  resume; the directory handle MAY be kept in IndexedDB so a reload needs only
+  a permission prompt, not another folder dialog.
+
+Format (`formatVersion` 1, JSON):
+
+```ts
+interface StackingRunFile {
+  formatVersion: 1
+  project: string            // as in the calibration record
+  scan_index: number
+  stackSize: number
+  calibrationFile: string    // relative path of the calibration record used
+  backend: string            // BackendCapabilities.id, e.g. "mock"
+  positions: Record<string, { // key: position NNN as a decimal string
+    relativePath: string
+    byteLength: number
+    sha256: string           // lower-case hex
+    stackedAt: string        // ISO 8601
+  }>
+  updatedAt: string          // ISO 8601
+}
+```
+
 ## 6. Helper detection (Step 6a)
 
 > **Superseded (2026-10-14):** detection becomes a same-origin
