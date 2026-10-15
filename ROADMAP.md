@@ -526,6 +526,16 @@ project/scan (existing projects store + batch discovery from the scan's
 photo list, spec §4.1), replacing the mock batches.
 **Test:** a full live scan, verify stacking keeps up with capturing and only
 the final stack is left as waiting time.
+**Status (2026-10-15):** done except two-stage deletion and the calibration
+pre-scan. Real scan selection, live stacking (100-position test: every
+position picked up ≤ 0.3 s after OS3's event, run done 1 s after the scan),
+`beforeunload`, run file + resume (spec §5.4), one-click continue after a
+closed tab, a per-scan "last run" notice. Added on request: a **local
+Source** — a folder of photos downloaded from the scanner, read via the
+folder dialog (read-only, remembered for resuming) or a plain folder input
+as fallback; nothing on the Pi is touched for it. UI wording: "Source" (where
+photos come from) and "Target" (where results go). The delete toggle needs a
+confirmation with a red button and stays locked while compute is the mock.
 
 ### Step 4 — Computing in the browser, simple variant
 **Model:** Sonnet, Opus if it gets stuck

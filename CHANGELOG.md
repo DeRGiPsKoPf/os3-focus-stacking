@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moved there (`app/src/stacking/compute/types.ts`);
   `docs/spec/compute-interface.ts` is now a pointer.
 
+- Step 3a (client): live stacking of real scans, resume from the run file,
+  one-click continue after a closed tab, per-scan "last run" notice, local
+  folder as Source, delete toggle behind a confirmation dialog.
 - Spec §5.4: run file format (`stacking_run_scanXX.json`) and resume rules —
   calibration reused, new calibration starts a new run file, entries checked by
   length and SHA-256, rewritten after every position.
