@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   targets. The Android helper and the server version (Step 7, covered by
   OpenScan Cloud) are dropped. `tools/upstream-baseline.json` now also
   watches the client's `app/src/stores/apiConfig.ts`.
+- Roadmap: HTTPS on the Pi is needed after all (stock OS3 images serve HTTP
+  only; the 2026-09-27 "already HTTPS" finding no longer holds). New Step 4a:
+  per-device self-signed certificate and nginx on 443 as an upstream PR to
+  `openscan3-system-config`, port 80 unchanged, plus an "Open the secure
+  version" button in the Stacking tab.
 
 ### Fixed
 

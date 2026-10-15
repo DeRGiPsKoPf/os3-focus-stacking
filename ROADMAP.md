@@ -1,6 +1,6 @@
 # Roadmap: Focus Stacking outside the Pi
 
-Status: 2026-10-14. This file is the starting point for every new session —
+Status: 2026-10-15. This file is the starting point for every new session —
 read it first, update it at the end.
 
 ## Goal
@@ -233,6 +233,70 @@ a single, clearly scoped building block.
   requirement.
 - **Bar to clear:** must be integrated as solidly as the rest of the
   foundation, not bolted on as a quick hack.
+- **Current state (checked 2026-10-15):** stock OS3 images serve **HTTP
+  only**. The maintainer's scanner (`openscan.local`) has port 80 (nginx) and
+  8000 (uvicorn) open, 443 closed. The nginx site
+  `/etc/nginx/sites-available/openscan3.conf` belongs to the APT package
+  `openscan3-system-config` (OpenScan3 `docs/DEBIAN_PACKAGING.md`, pi-gen
+  `DOCUMENTATION.md`), so a hand-made HTTPS setup on the Pi is likely
+  overwritten by the next package update — probably why the scanner that used
+  HTTPS on 2026-09-27 doesn't anymore (not verified). The 2026-09-27
+  "resolved" note under open decisions is therefore withdrawn: HTTPS is
+  needed after all, as its own upstream contribution (Step 4a).
+
+**Plan (Step 4a): HTTPS as a package-owned default, aimed at the simplest
+experience for a normal user.** No certificate files to copy, no settings,
+no command line:
+
+1. **Certificate per device, created on the Pi.** A small oneshot systemd unit
+   (in `openscan3-system-config`) runs before nginx: if
+   `/etc/openscan3/tls/` has no certificate, or its names no longer match the
+   current hostname, it creates a self-signed one with `openssl` (key stays
+   on the device, never shipped in the package; subject alternative names
+   `<hostname>.local`, `<hostname>`, the current IPs; long validity). No
+   shared private key across devices.
+2. **nginx listens on 443 as well**, with the same site (SPA, `/api`
+   proxying incl. WebSocket upgrade headers and unbuffered MJPEG). **Port 80
+   stays as it is** — no forced redirect, so nothing that talks to the Pi
+   over HTTP today breaks (scripts, the API at `:8000`, older clients).
+3. **The client needs no change for this:** `apiConfig.ts` already takes the
+   scheme from `window.location.protocol`, so a page opened over `https://`
+   calls the API and WebSockets over `https://`/`wss://` on the same host.
+4. **User-facing part, inside the Stacking tab (our PR, not a separate
+   one):** if `window.isSecureContext` is false, the tab explains in one
+   sentence what's missing (folder saving, deleting originals, fast GPU
+   stacking) and offers a button "Open the secure version" →
+   `https://<same host>/stacking`. The browser shows its certificate warning
+   **once** per PC/browser ("Advanced → Continue"); the tab says beforehand
+   that this is expected for a home-network device. Without HTTPS on the Pi
+   the button is hidden and the tab falls back to downloads as today.
+
+To verify in Step 4a before proposing it: after clicking through the
+certificate warning, Chrome/Edge must report `isSecureContext === true` and
+allow `showDirectoryPicker` and WebGPU (expected; service workers are known
+not to work on such pages, but the client doesn't use one). Firefox/Safari
+keep the download fallback regardless.
+
+Rejected for normal users: a local CA the user installs on every PC (too many
+steps), public certificates (impossible for `.local` names), Chrome's
+"treat insecure origin as secure" flag (a developer workaround). The helper
+(Step 6) remains the route that needs no certificate at all, since
+`localhost` is always secure.
+
+**How the PR works** (first upstream PR, so step by step): the source of
+`openscan3-system-config` is not in a public GitHub repo we could find
+(OpenScan3 and OpenScan3-pi-gen only install it from the APT repository).
+So: (a) ask the maintainers in a GitHub Discussion/issue on `OpenScan3`
+where the package lives and whether they'd accept HTTPS-by-default as
+described — short, with the reason (secure-context APIs) and the "port 80
+unchanged" promise; (b) fork that repository, branch, implement 1–2, build
+the `.deb`, install it on our own scanner and test (fresh install, upgrade,
+hostname change, HTTP still working); (c) push the branch to the fork and
+open the PR on GitHub with what changed, why, and how it was tested; (d)
+answer review comments by pushing more commits to the same branch. If they'd
+rather own it themselves, the same description becomes an issue instead.
+Timing as recommended above: after the Stacking tab works with real compute
+(Step 4), before WebGPU (Step 5) needs it.
 
 ## Open decisions
 
@@ -247,12 +311,14 @@ a single, clearly scoped building block.
 - Write results back to the Pi? OS3 has no endpoint for that. Not a
   priority — results stay on the PC/chosen storage target. An additive PR
   against OS3 would be possible, but is its own, separate undertaking.
-- ~~HTTPS earlier than Step 5?~~ **Resolved 2026-09-27:** the maintainer's Pi
-  already serves the UI over `https://`. The concern raised in Step 0 (several
-  browser APIs need a secure context) doesn't block anything — no HTTPS PR
-  needed before Step 5 after all, and no downloads-only fallback on the
-  Pi-served page. The HTTPS section above (self-signed cert, Step 5 PR
-  timing) still applies to whoever doesn't already have this.
+- ~~HTTPS earlier than Step 5?~~ ~~Resolved 2026-09-27: the maintainer's Pi
+  already serves the UI over `https://`.~~ **Reopened and decided
+  2026-10-15:** the scanner serves HTTP only (stock images have no HTTPS), so
+  HTTPS becomes its own upstream contribution, Step 4a — plan in the HTTPS
+  section above. Development is unaffected (dev server on `localhost`).
+- Where the source of `openscan3-system-config` (owner of the nginx site)
+  lives, and whether the maintainers want HTTPS-by-default. Ask them before
+  Step 4a.
 - How the calibration pre-scan gets its scan settings and is started (own
   settings form in the Stacking tab vs. a touch point in the Scan page; main
   scan chained via OS3's `depends_on`). Decide in Step 3a.
@@ -468,6 +534,17 @@ guaranteed to match the reference result.
 **Test:** compare against Step 1, must be practically identical.
 **Risk:** whether the OpenCV package for Pyodide can do everything needed
 must be checked early.
+
+### Step 4a — HTTPS on the Pi (upstream PR to `openscan3-system-config`)
+**Model:** Opus (touches someone else's system packaging)
+Per-device self-signed certificate created on the Pi, nginx on 443 next to
+the unchanged port 80, and the Stacking tab's "Open the secure version"
+button. Full plan, rejected alternatives and the PR walkthrough: "On the
+HTTPS question" above.
+**Test:** on the maintainer's scanner — fresh install and upgrade of the
+package, hostname change regenerates the certificate, HTTP keeps working,
+Chrome/Edge report a secure context after the one-time warning and the folder
+dialog works on `https://openscan.local/stacking`.
 
 ### Step 5 — Computing in the browser, fast variant
 **Model:** Opus for the setup, Sonnet for the rest
