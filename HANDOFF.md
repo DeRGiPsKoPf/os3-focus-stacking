@@ -1,7 +1,7 @@
 # Handoff – current state of work
 
-**Updated:** 2026-10-15 (end of session) · branch `main`, in sync with `origin/main` (public) · last worked on the
-maintainer's desktop
+**Updated:** 2026-10-17 · branch `main`, in sync with `origin/main` (public) · laptop prepared for the next session;
+last code work on the maintainer's desktop (2026-10-15)
 
 ## Current goal
 
@@ -19,8 +19,10 @@ After that: Step 4 (Pyodide, real compute in the browser), then Step 4a (HTTPS o
 
 Desktop: `python/.venv` exists, Node 22.23.2 installed via winget, `npm install` done in the client; dev server entry
 `client-dev` in `%USERPROFILE%\Projects\.claude\launch.json`.
-**Laptop:** still has the old `os3-focus-stacking\client\` – delete it once `%USERPROFILE%\Projects\os3-stacking-client`
-exists (check first that the old copy has nothing unpushed); `python/.venv` and Node there unknown.
+**Laptop** (prepared 2026-10-17): both repos pulled, no `client\` left inside this repo, client remotes renamed to
+`origin` (private) / `upstream` (push disabled); `python/.venv` created (`pytest` 54 passed); Node 22.23.2 (winget),
+`npm install` + `npm run build` OK; `client-dev` entry in `%USERPROFILE%\Projects\.claude\launch.json` – start Claude
+sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev server against the scanner.
 
 ## Last state
 
