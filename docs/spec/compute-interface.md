@@ -237,9 +237,12 @@ work live, so the policy is explicit and recorded in the calibration file:
 About `calibration-scan`: the calibration positions don't have to be positions
 of the main scan. The matrices describe how the lens image shifts and scales
 across the focus sweep, which is the same at every turntable position. The
-spread is only there so that ECC sees different views (more robust). How the
-pre-scan gets its settings and is started (the main scan can wait on it via
-OS3's `depends_on`) is decided in Step 3a.
+spread is only there so that ECC sees different views (more robust).
+
+**Status:** `calibration-scan` is **deferred** (decided 2026-10-19; reasons in
+ROADMAP.md, Open decisions). Orchestrators MAY omit it; the client's Stacking
+tab currently offers `leading` only. The policy value stays reserved so that
+calibration records written later remain compatible.
 
 Before using a calibration, the orchestrator MUST check that `stackSize`,
 `imageWidth` and `imageHeight` match the scan, and MUST warn when `failures`

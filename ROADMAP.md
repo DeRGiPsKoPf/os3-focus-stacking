@@ -63,6 +63,9 @@ interface in Step 0).
   the main scan. The matrices describe the lens's focus breathing, which is the
   same at every turntable position, so the pre-scan positions don't need to be
   positions of the main scan. Details: `docs/spec/compute-interface.md` §4.2.
+  The pre-scan toggle is **deferred** (2026-10-19, see Open decisions): live
+  scans calibrate from the first 3 positions until a measurement shows that
+  isn't good enough.
 - **Tiling from the start.** Any image size up to the native camera
   resolution. Tile size and overlap are multiples of 4 px (= 1 / the
   downscale factor of the sharpness map). Overlap at least 16 px.
@@ -319,9 +322,31 @@ Timing as recommended above: after the Stacking tab works with real compute
 - Where the source of `openscan3-system-config` (owner of the nginx site)
   lives, and whether the maintainers want HTTPS-by-default. Ask them before
   Step 4a.
-- How the calibration pre-scan gets its scan settings and is started (own
-  settings form in the Stacking tab vs. a touch point in the Scan page; main
-  scan chained via OS3's `depends_on`). Decide in Step 3a.
+- ~~How the calibration pre-scan gets its scan settings and is started.~~
+  **Decided 2026-10-19: deferred.** The Stacking-tab PR ships live stacking
+  with the `leading` calibration only; the pre-scan is proposed to the
+  maintainers later as its own small PR or issue, and only if measurements
+  show it's needed. Why:
+  - *Own form in the Stacking tab* can't see the main scan's settings: the
+    Scan page keeps focus steps/range as local component state
+    (`ScanSettingsSection.vue`) until the scan starts. The tab would need its
+    own focus fields (entered twice, mismatches only caught afterwards), two
+    manual starts, and an extra scan in the project. Works without touching
+    upstream code, but clumsy.
+  - *Touch point in the Scan page* is the clean UX (one toggle, same settings,
+    main scan chained via `depends_on`, which OS3's add-scan call already
+    accepts — no firmware change), but it edits upstream's busiest page:
+    breaks the one-route-one-nav-entry rule, makes the PR a much bigger ask,
+    and causes rebase conflicts while we wait.
+  - *Reusing an earlier scan's calibration* (no pre-scan at all) is rejected:
+    the matrices depend on the physical setup (camera tilt, distance, focus
+    range), which can change between scans.
+  - The pre-scan's only gain is robustness: `leading` calibrates from 3
+    neighbouring views, which can be low on texture. Whether that matters
+    is unmeasured. **Measure first** (Step 4): stack a real 100-position scan
+    with `leading` and with `spread` calibration and run `os3stack compare`.
+    Below the compare target (< 0.5 % differing pixels, mean < 0.01·255) →
+    drop the pre-scan. Above → propose the Scan-page touch point upstream.
 - Upstream target branch for the PR (`develop` is where upstream merges
   features, `main` is the default/release branch). Confirm with the
   maintainers before opening the PR.
@@ -526,8 +551,12 @@ project/scan (existing projects store + batch discovery from the scan's
 photo list, spec §4.1), replacing the mock batches.
 **Test:** a full live scan, verify stacking keeps up with capturing and only
 the final stack is left as waiting time.
-**Status (2026-10-15):** done except two-stage deletion and the calibration
-pre-scan. Real scan selection, live stacking (100-position test: every
+**Status (2026-10-19):** done except a test of two-stage deletion on the
+scanner. The calibration pre-scan is **deferred** out of this step (see Open
+decisions): the tab calibrates live from the first 3 positions only.
+Two-stage deletion (2026-10-18): per position after its result and the
+calibration record are verified and no OS3 stacking task needs the photos;
+locked while compute is the mock. Real scan selection, live stacking (100-position test: every
 position picked up ≤ 0.3 s after OS3's event, run done 1 s after the scan),
 `beforeunload`, run file + resume (spec §5.4), one-click continue after a
 closed tab, a per-scan "last run" notice. Added on request: a **local
@@ -541,7 +570,9 @@ confirmation with a red button and stays locked while compute is the mock.
 **Model:** Sonnet, Opus if it gets stuck
 Pyodide: the same Python code runs directly in the browser. Slow, but
 guaranteed to match the reference result.
-**Test:** compare against Step 1, must be practically identical.
+**Test:** compare against Step 1, must be practically identical. Also settle
+the deferred calibration pre-scan: `leading` vs. `spread` calibration on a
+real 100-position scan (see Open decisions).
 **Risk:** whether the OpenCV package for Pyodide can do everything needed
 must be checked early.
 
