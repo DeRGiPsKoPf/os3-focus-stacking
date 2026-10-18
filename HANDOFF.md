@@ -1,11 +1,11 @@
 # Handoff – current state of work
 
-**Updated:** 2026-10-17 · branch `main`, in sync with `origin/main` (public) · laptop prepared for the next session;
-last code work on the maintainer's desktop (2026-10-15)
+**Updated:** 2026-10-18 · branch `main`, in sync with `origin/main` (public) · session on the laptop
 
 ## Current goal
 
-**Step 3a – live stacking hookup** (see `ROADMAP.md`): done except two-stage deletion and the calibration pre-scan.
+**Step 3a – live stacking hookup** (see `ROADMAP.md`): done except the calibration pre-scan; two-stage deletion is
+built but not yet tried on the scanner.
 After that: Step 4 (Pyodide, real compute in the browser), then Step 4a (HTTPS on the Pi).
 
 ## Where the work lives
@@ -26,6 +26,11 @@ sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev 
 
 ## Last state
 
+- 2026-10-18 (laptop): **two-stage deletion** in the client (`56a00d8`, details in its `HANDOFF.md`); here `ad1e16e`:
+  spec §5.4 run-file entries get optional `originalsDeletedAt`, a missing result whose originals are gone is reported
+  as lost instead of re-stacked; `CHANGELOG.md`. `tools/check_upstream.py`: watched files unchanged (OS3 now at
+  `v0.13.2`, 12 commits past the baseline; client unchanged). Firmware read for the delete endpoint: OS3 removes file,
+  metadata and the `scan.photos` entry; its scan task resumes by `current_step`, so deleting doesn't trigger a recapture.
 - `efe64d9` `ROADMAP.md`/`CHANGELOG.md`: Step 3a status and the local Source.
 - `967d971` spec §5.4: run file format and resume rules (calibration reused, new calibration → new run file, entries
   checked by length + SHA-256, rewritten after every position).
@@ -41,8 +46,10 @@ sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev 
 
 ## Open work (in order)
 
-1. Step 3a: two-stage deletion (spec §5.3) – implement; stays locked while compute is the mock.
-2. Step 3a: decide and build how the calibration pre-scan is started (see decisions pending).
+1. Step 3a: decide and build how the calibration pre-scan is started (see decisions pending).
+2. Step 3a: try two-stage deletion on the scanner (not reachable from the laptop on 2026-10-18): flip
+   `REAL_COMPUTE_AVAILABLE` locally (don't commit), use a throwaway scan only, live and finished; also check that
+   deleting while OS3 is still capturing doesn't lose photo entries (scan task and delete both write `scan.json`).
 3. Step 4 (Pyodide): real compute in the browser; the first real check of the whole client against the Python reference.
 4. Step 4a: ask the maintainers where `openscan3-system-config` lives and whether they want HTTPS by default.
 5. Confirm Step 1 on a real OS3 scan: download a `testscan*` folder and run `os3stack stack` on it.
