@@ -1,12 +1,13 @@
 # Handoff – current state of work
 
-**Updated:** 2026-10-19 · branch `main`, in sync with `origin/main` (public) · session on the laptop, no scanner at hand
+**Updated:** 2026-10-19 (end of session) · branch `main`, in sync with `origin/main` (public) · session on the laptop,
+no scanner at hand
 
 ## Current goal
 
-**Step 3a – live stacking hookup** (see `ROADMAP.md`): done except a test of two-stage deletion on the scanner. The
-calibration pre-scan is deferred (decided 2026-10-19, see below).
-Next: Step 4 (Pyodide, real compute in the browser), then Step 4a (HTTPS on the Pi).
+**Step 4 – Pyodide, real stacking in the browser** (see `ROADMAP.md`): built and tested on real photos from a local
+folder; everything left needs the scanner. Step 3a is done except trying two-stage deletion on the scanner; the
+calibration pre-scan is deferred. Then Step 4a (HTTPS on the Pi).
 
 ## Where the work lives
 
@@ -14,56 +15,57 @@ Next: Step 4 (Pyodide, real compute in the browser), then Step 4a (HTTPS on the 
 |---|---|---|
 | This repo | GitHub `DeRGiPsKoPf/os3-focus-stacking`, `main` | up to date |
 | Client work | own repo `DeRGiPsKoPf/os3-stacking-client` (private), branch `feature/stacking-tab`, checked out next to this repo as `%USERPROFILE%\Projects\os3-stacking-client` | in sync with GitHub; its own `HANDOFF.md` tracks the client state |
-| Base of the client branch | upstream `develop` at `d4da05e` (release 0.8.0) | unchanged upstream (checked 2026-10-15) |
+| Base of the client branch | upstream `develop` at `d4da05e` (release 0.8.0) | unchanged upstream (checked 2026-10-18) |
 | Test scanner | `http://openscan.local` (HTTP only, API v0.9) | projects `testscan1`, `testscan2` (10 pos.), `testscan3` (100 pos.), all 4 focus steps |
+| Test photos (not in git) | `stack example/` (ignored), see its `SOURCES.txt` | 3 real brackets as one-position OS3 scans in `stack example/os3/<project>/scan01`, reference results in `stacked/` |
 
-Desktop: `python/.venv` exists, Node 22.23.2 installed via winget, `npm install` done in the client; dev server entry
-`client-dev` in `%USERPROFILE%\Projects\.claude\launch.json`.
-**Laptop** (prepared 2026-10-17): both repos pulled, no `client\` left inside this repo, client remotes renamed to
-`origin` (private) / `upstream` (push disabled); `python/.venv` created (`pytest` 54 passed); Node 22.23.2 (winget),
-`npm install` + `npm run build` OK; `client-dev` entry in `%USERPROFILE%\Projects\.claude\launch.json` – start Claude
-sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev server against the scanner.
+Desktop: `python/.venv` exists (still OpenCV 5.0 there – run `pip install -e ".[dev]"` once to get the 4.11 pin), Node
+22.23.2, `npm install` done in the client (run it again: it now also fetches Pyodide); dev server entry `client-dev` in
+`%USERPROFILE%\Projects\.claude\launch.json`.
+**Laptop:** both repos current; `python/.venv` with OpenCV 4.11.0.86 (`pytest` 55 passed); client `npm install` done,
+`public/pyodide/` fetched. Start Claude sessions in `%USERPROFILE%\Projects` so `client-dev` is found (sessions in this
+repo need a temporary `.claude/launch.json` with `--prefix ../os3-stacking-client/app`).
 
 ## Last state
 
-- 2026-10-19 `7ec805b`: **calibration pre-scan deferred** (`ROADMAP.md` "Open decisions" has the full why; spec §4.2,
-  `CHANGELOG.md`). The PR ships `leading` calibration only. An own form in the Stacking tab can't see the main scan's
-  settings (local state in upstream's `ScanSettingsSection.vue`); a Scan-page touch point would edit upstream's
-  busiest page; reusing an old calibration is out because tilt/distance/focus range can change. Step 4 measures
-  `leading` vs. `spread`; only if that misses the compare target is the Scan-page variant proposed upstream as its
-  own PR/issue (OS3's add-scan already takes `depends_on`, no firmware change needed).
-- 2026-10-18 (laptop): **two-stage deletion** in the client (`56a00d8`, details in its `HANDOFF.md`); here `ad1e16e`:
-  spec §5.4 run-file entries get optional `originalsDeletedAt`, a missing result whose originals are gone is reported
-  as lost instead of re-stacked; `CHANGELOG.md`. `tools/check_upstream.py`: watched files unchanged (OS3 now at
-  `v0.13.2`, 12 commits past the baseline; client unchanged). Firmware read for the delete endpoint: OS3 removes file,
-  metadata and the `scan.photos` entry; its scan task resumes by `current_step`, so deleting doesn't trigger a recapture.
-- `efe64d9` `ROADMAP.md`/`CHANGELOG.md`: Step 3a status and the local Source.
-- `967d971` spec §5.4: run file format and resume rules (calibration reused, new calibration → new run file, entries
-  checked by length + SHA-256, rewritten after every position).
-- `93d317d` `ROADMAP.md`: **HTTPS on the Pi becomes Step 4a** (the scanner serves HTTP only; nginx site belongs to the
-  APT package `openscan3-system-config`, source not public). Plan: per-device self-signed certificate, nginx on 443
-  next to an unchanged port 80, "Open the secure version" button in the Stacking tab; PR walkthrough in the roadmap.
-- Client (details in its `HANDOFF.md`): live stacking of real scans (100-position test: each position picked up
-  ≤ 0.3 s after OS3's event, run done 1 s after the scan), run file + resume, one-click continue after a closed tab,
-  per-scan "last run" notice, **local folder as Source** (photos downloaded from the scanner, nothing on the Pi
-  touched), UI wording "Source"/"Target", delete toggle behind a red confirmation dialog. Compute is still the mock
-  backend (placeholder images).
-- 2026-10-15: `pytest` 54 passed in the new `python/.venv`; `tools/check_upstream.py`: watched files unchanged.
+- 2026-10-19 **Step 4** – here `9fc7c5f`, client `4891dd8` (details in its `HANDOFF.md`):
+  - Pyodide 314.0.7 (OpenCV 4.11, numpy) runs everything `os3stack` needs, `findTransformECC` included.
+  - **Reference pinned to `opencv-python-headless==4.11.0.86`** (`python/pyproject.toml`): OpenCV 5.0 merged 11–13 %
+    of pixels differently from 4.11 on identical input; native 4.11 vs. Pyodide ≤ 0.012 %.
+  - **JPEG in the browser:** Pyodide's OpenCV decodes 4.8 % of pixels differently (other JPEG library); Chromium's
+    decoder and encoder match OpenCV's libjpeg-turbo pixel for pixel, EXIF orientation 3/6/8 included. So the worker
+    decodes/encodes, Python only computes.
+  - `os3stack`: injectable image loader (`calibrate(..., load=)`, `merge_batch`, `combine_batch_calibrations`),
+    results byte-identical to before; `tools/sync_client_python.py` copies the modules into the client (`--check`).
+  - Pyodide + numpy + OpenCV **bundled with the client** (~26 MB, offline-capable), decided by the maintainer.
+  - Results (3 real brackets, 4–10 photos, 1–3 MP): merge with reference matrices 0.008–0.38 % differing pixels, mean
+    ≤ 0.005/255; own calibration ≤ 0.0125 px from the reference; 9–14 s per run incl. Python start.
+  - Spec §3.1/§7/§8 (sync, bundling, browser JPEG, calibration tolerance 0.05 px, end-to-end mean only), `ROADMAP.md`
+    Step 4 status, `CHANGELOG.md`, `CLAUDE.md` (stack, architecture, decisions).
+- 2026-10-19 `7ec805b`: **calibration pre-scan deferred**; full reasoning in `ROADMAP.md` "Open decisions".
+- 2026-10-18: **two-stage deletion** (client `56a00d8`, spec §5.4 `originalsDeletedAt` here `ad1e16e`); firmware
+  read: OS3's delete removes file, metadata and `scan.photos` entry; scan resume goes by `current_step`.
+- Earlier: Step 3a live stacking, run file + resume, local Source (see `ROADMAP.md`).
 
 ## Open work (in order)
 
-1. Step 4 (Pyodide): real compute in the browser; the first real check of the whole client against the Python
-   reference. Without a scanner: use a local Source folder of downloaded photos, if one is at hand.
-2. Step 3a, **needs the scanner**: try two-stage deletion: flip `REAL_COMPUTE_AVAILABLE` locally (don't commit), use a
-   throwaway scan only, live and finished; also check that deleting while OS3 is still capturing doesn't lose photo
-   entries (scan task and delete both write `scan.json`).
-3. **Needs the scanner** (or a downloaded copy): download `testscan3` (100 positions) to confirm Step 1 with
-   `os3stack stack`, and measure `leading` vs. `spread` calibration with `os3stack compare` (decides the pre-scan;
+All of this **needs the scanner**:
+
+1. Step 4 on the Pi: deploy the client build (or `npm run build` + copy) and check that nginx serves
+   `/pyodide/v314.0.7/pyodide.mjs` as JavaScript and `.wasm` as `application/wasm` (`curl -I`); then a live run.
+2. Memory at the real size: 16 MP × 12 steps (the reference pre-warps every step, ~1.3 GB in WebAssembly; limit 4 GB).
+3. Compare with OS3's own output: let OS3 stack a test scan, download it, `os3stack compare` (with
+   `os3stack stack --calibration <OS3's calibration_scanXX.json>` to separate merge from calibration). Read the Pi's
+   OpenCV version: `python3 -c "import cv2; print(cv2.__version__)"`.
+4. Download `testscan3` (100 positions): confirm Step 1, measure `leading` vs. `spread` (decides the pre-scan;
    `os3stack` needs a small option to calibrate from the first 3 positions).
-4. Step 4a: ask the maintainers where `openscan3-system-config` lives and whether they want HTTPS by default.
+5. Two-stage deletion on a throwaway scan: set `DELETION_ENABLED = true` in the client's `store.ts` locally (don't commit
+   until tested); live and finished; deleting while OS3 still captures must not lose `scan.photos` entries.
+6. Step 4a: ask the maintainers where `openscan3-system-config` lives and whether they want HTTPS by default.
 
 ## Known problems
 
+- Not verified against OS3's own stacked output yet (item 3); "same quality" is expected, not proven.
 - OS3 v0.9 sends tasks over `/ws/tasks` without `run_args`; the client matches the scan task by `scan.task_id` instead.
   Upstream's own `taskUtils` (`getScanIdentifier`) has the same blind spot – possibly worth an upstream issue.
 - Folder dialog (`showDirectoryPicker`) needs Chrome/Edge or Brave with `brave://flags/#file-system-access-api`, and a
@@ -77,7 +79,8 @@ sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev 
 
 | Question | Options | Status |
 |---|---|---|
-| Calibration pre-scan, if the measurement shows `leading` isn't good enough | Scan-page touch point as a separate upstream PR/issue (preferred) · own form in the Stacking tab | deferred 2026-10-19; decide after the Step 4 measurement |
+| Calibration pre-scan, if the measurement shows `leading` isn't good enough | Scan-page touch point as a separate upstream PR/issue (preferred) · own form in the Stacking tab | deferred 2026-10-19; decide after the measurement |
+| If the Pi's nginx serves `.mjs` wrongly | load Pyodide's classic `pyodide.js` instead · ask for an nginx MIME entry (`openscan3-system-config`) | decide after the Pi check |
 | HTTPS-by-default on the Pi | as planned in Step 4a · maintainers prefer to do it themselves (then an issue) | ask maintainers before Step 4a |
 | Upstream PR target branch | `develop` (our base) · `main` | confirm with maintainers before the PR |
 | Port-aware API URL PR (`app/src/stores/apiConfig.ts`) | separate upstream PR · developer mode only | open, prerequisite for Step 6 |
