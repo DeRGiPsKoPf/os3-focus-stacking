@@ -17,7 +17,13 @@ calibration pre-scan is deferred. Then Step 4a (HTTPS on the Pi).
 | Client work | own repo `DeRGiPsKoPf/os3-stacking-client` (private), branch `feature/stacking-tab`, checked out next to this repo as `%USERPROFILE%\Projects\os3-stacking-client` | in sync with GitHub; its own `HANDOFF.md` tracks the client state |
 | Base of the client branch | upstream `develop` at `d4da05e` (release 0.8.0) | unchanged upstream (checked 2026-10-18) |
 | Test scanner | `http://openscan.local` (HTTP only, API v0.9) | projects `testscan1`, `testscan2` (10 pos.), `testscan3` (100 pos.), all 4 focus steps |
-| Test photos (not in git) | `stack example/` (ignored), see its `SOURCES.txt` | 3 real brackets as one-position OS3 scans in `stack example/os3/<project>/scan01`, reference results in `stacked/` |
+| Test photos (not in git, **laptop only**) | `stack example/` (ignored), see its `SOURCES.txt` | 3 real brackets as one-position OS3 scans in `stack example/os3/<project>/scan01`, reference results in `stacked/` |
+
+On another PC the test photos are missing (deliberately not in git). The souvenir bracket (`DSC08953…61_big.jpg`) is
+only on the maintainer's machines; the two circuit-board brackets come from
+`github.com/PetteriAimonen/focus-stack`, `examples/depthmap` (10 photos) and `examples/pcb` (7, MIT licence). Copy
+each bracket to `stack example/os3/<name>/scan01/scan01_000_fsSS.jpg` (SS = 00, 01, … in file order) and run
+`os3stack stack` on it for the reference results.
 
 Desktop: `python/.venv` exists (still OpenCV 5.0 there – run `pip install -e ".[dev]"` once to get the 4.11 pin), Node
 22.23.2, `npm install` done in the client (run it again: it now also fetches Pyodide); dev server entry `client-dev` in
@@ -49,7 +55,21 @@ repo need a temporary `.claude/launch.json` with `--prefix ../os3-stacking-clien
 
 ## Open work (in order)
 
-All of this **needs the scanner**:
+**Without a scanner** (next session):
+
+1. Memory and speed at full size: build synthetic brackets at 16 MP × 12 steps from the test photos (upscaled), run
+   them through the Pyodide backend in the browser. If WebAssembly memory gets tight (the reference pre-warps every
+   step, ~1.3 GB, limit 4 GB): merge with one aligned image at a time, like OS3 itself – same result for untiled.
+2. Defuse the `.mjs` risk before the Pi test: serve the build locally with wrong MIME types to see what breaks, check
+   which types Raspberry Pi OS's nginx `mime.types` knows, and build the fallback via Pyodide's classic `pyodide.js`
+   if needed.
+3. `os3stack`: option to calibrate from the first N positions (`leading`), so the `leading` vs. `spread` measurement
+   runs as soon as `testscan3` is downloaded.
+4. Prepare the upstream PR: keep or drop the demo data, PR branch without `CLAUDE.md`/`HANDOFF.md`, check upstream
+   `develop` and rebase, draft the PR text (incl. why `package.json`, `.gitignore` and one ESLint line are touched).
+5. Step 5 (WebGPU): can be built and checked against Pyodide with local photos; the biggest item, start after 1–4.
+
+**Needs the scanner:**
 
 1. Step 4 on the Pi: deploy the client build (or `npm run build` + copy) and check that nginx serves
    `/pyodide/v314.0.7/pyodide.mjs` as JavaScript and `.wasm` as `application/wasm` (`curl -I`); then a live run.
