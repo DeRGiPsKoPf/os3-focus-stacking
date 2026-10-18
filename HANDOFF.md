@@ -1,12 +1,12 @@
 # Handoff – current state of work
 
-**Updated:** 2026-10-18 · branch `main`, in sync with `origin/main` (public) · session on the laptop
+**Updated:** 2026-10-19 · branch `main`, in sync with `origin/main` (public) · session on the laptop, no scanner at hand
 
 ## Current goal
 
-**Step 3a – live stacking hookup** (see `ROADMAP.md`): done except the calibration pre-scan; two-stage deletion is
-built but not yet tried on the scanner.
-After that: Step 4 (Pyodide, real compute in the browser), then Step 4a (HTTPS on the Pi).
+**Step 3a – live stacking hookup** (see `ROADMAP.md`): done except a test of two-stage deletion on the scanner. The
+calibration pre-scan is deferred (decided 2026-10-19, see below).
+Next: Step 4 (Pyodide, real compute in the browser), then Step 4a (HTTPS on the Pi).
 
 ## Where the work lives
 
@@ -26,6 +26,12 @@ sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev 
 
 ## Last state
 
+- 2026-10-19 `7ec805b`: **calibration pre-scan deferred** (`ROADMAP.md` "Open decisions" has the full why; spec §4.2,
+  `CHANGELOG.md`). The PR ships `leading` calibration only. An own form in the Stacking tab can't see the main scan's
+  settings (local state in upstream's `ScanSettingsSection.vue`); a Scan-page touch point would edit upstream's
+  busiest page; reusing an old calibration is out because tilt/distance/focus range can change. Step 4 measures
+  `leading` vs. `spread`; only if that misses the compare target is the Scan-page variant proposed upstream as its
+  own PR/issue (OS3's add-scan already takes `depends_on`, no firmware change needed).
 - 2026-10-18 (laptop): **two-stage deletion** in the client (`56a00d8`, details in its `HANDOFF.md`); here `ad1e16e`:
   spec §5.4 run-file entries get optional `originalsDeletedAt`, a missing result whose originals are gone is reported
   as lost instead of re-stacked; `CHANGELOG.md`. `tools/check_upstream.py`: watched files unchanged (OS3 now at
@@ -46,13 +52,15 @@ sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev 
 
 ## Open work (in order)
 
-1. Step 3a: decide and build how the calibration pre-scan is started (see decisions pending).
-2. Step 3a: try two-stage deletion on the scanner (not reachable from the laptop on 2026-10-18): flip
-   `REAL_COMPUTE_AVAILABLE` locally (don't commit), use a throwaway scan only, live and finished; also check that
-   deleting while OS3 is still capturing doesn't lose photo entries (scan task and delete both write `scan.json`).
-3. Step 4 (Pyodide): real compute in the browser; the first real check of the whole client against the Python reference.
+1. Step 4 (Pyodide): real compute in the browser; the first real check of the whole client against the Python
+   reference. Without a scanner: use a local Source folder of downloaded photos, if one is at hand.
+2. Step 3a, **needs the scanner**: try two-stage deletion: flip `REAL_COMPUTE_AVAILABLE` locally (don't commit), use a
+   throwaway scan only, live and finished; also check that deleting while OS3 is still capturing doesn't lose photo
+   entries (scan task and delete both write `scan.json`).
+3. **Needs the scanner** (or a downloaded copy): download `testscan3` (100 positions) to confirm Step 1 with
+   `os3stack stack`, and measure `leading` vs. `spread` calibration with `os3stack compare` (decides the pre-scan;
+   `os3stack` needs a small option to calibrate from the first 3 positions).
 4. Step 4a: ask the maintainers where `openscan3-system-config` lives and whether they want HTTPS by default.
-5. Confirm Step 1 on a real OS3 scan: download a `testscan*` folder and run `os3stack stack` on it.
 
 ## Known problems
 
@@ -69,7 +77,7 @@ sessions in `%USERPROFILE%\Projects` so it is found. Not run on the laptop: dev 
 
 | Question | Options | Status |
 |---|---|---|
-| How the calibration pre-scan is started | own form in the Stacking tab · touch point in the Scan page (chained via `depends_on`) | decide in Step 3a |
+| Calibration pre-scan, if the measurement shows `leading` isn't good enough | Scan-page touch point as a separate upstream PR/issue (preferred) · own form in the Stacking tab | deferred 2026-10-19; decide after the Step 4 measurement |
 | HTTPS-by-default on the Pi | as planned in Step 4a · maintainers prefer to do it themselves (then an issue) | ask maintainers before Step 4a |
 | Upstream PR target branch | `develop` (our base) · `main` | confirm with maintainers before the PR |
 | Port-aware API URL PR (`app/src/stores/apiConfig.ts`) | separate upstream PR · developer mode only | open, prerequisite for Step 6 |
