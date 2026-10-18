@@ -311,7 +311,9 @@ This mirrors OS3's own resume logic.
 - **A new calibration starts a new run file** (empty `positions`), so results
   merged with other matrices are never continued from.
 - Entries whose file is missing or differs in length or SHA-256 (fresh read
-  through the storage target) are dropped and the position is stacked again.
+  through the storage target) are dropped and the position is stacked again —
+  unless the entry has `originalsDeletedAt`: then the result is lost (nothing
+  left to stack from), the entry is kept, and the UI MUST say so on every start.
 - The run file is rewritten after every position, so a crash loses at most
   the position in progress. Run files of a different `backend` are not
   continued from.
@@ -334,6 +336,7 @@ interface StackingRunFile {
     byteLength: number
     sha256: string           // lower-case hex
     stackedAt: string        // ISO 8601
+    originalsDeletedAt?: string // ISO 8601, set after stage 2 of §5.3 succeeded
   }>
   updatedAt: string          // ISO 8601
 }

@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spec §5.4: run file format (`stacking_run_scanXX.json`) and resume rules —
   calibration reused, new calibration starts a new run file, entries checked by
   length and SHA-256, rewritten after every position.
+- Step 3a (client): two-stage deletion (spec §5.3) — originals deleted per
+  position after its result and the calibration record are verified and no
+  OS3 stacking task needs them; still locked while compute is the mock.
+- Spec §5.4: optional `originalsDeletedAt` per run-file entry; a missing
+  result whose originals are deleted is reported as lost, not re-stacked.
 
 ### Changed
 
