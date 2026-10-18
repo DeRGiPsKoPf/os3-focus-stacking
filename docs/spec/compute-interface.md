@@ -79,6 +79,8 @@ to the helper. `control` carries an `AbortSignal` and a progress callback.
   does (OS3 writes the tag from the camera's orientation setting). All
   coordinates (matrices, tiles, output) refer to the oriented image. Browser
   decoders MUST NOT apply colour management (`colorSpaceConversion: 'none'`).
+  Browser backends decode and encode with the browser's codec, not with
+  Pyodide's OpenCV build (§8).
   *Resolved in Step 0:* neither `opencv-python` nor `pyturbojpeg` is a
   declared dependency of `openscan-firmware` (checked against `pyproject.toml`
   at the v0.13.0/`develop` baseline) — `cv2` comes from a system package on
@@ -371,11 +373,30 @@ interface StackingRunFile {
 
 All client code lives in the OpenScan3-Client clone under `app/src/stacking/`
 (types, backends, orchestrator, storage), `app/src/pages/StackingPage.vue` and
-`app/src/components/stacking/`. Python code for Pyodide is shipped as a static
-asset (Step 4 decides the sync mechanism from `python/`). Touch points in
-existing client code, kept minimal for the upstream PR:
-`app/src/router/routes.ts` (one route), `app/src/layouts/MainLayout.vue` (one
-navigation entry), `app/src/i18n/en-US/index.ts` (strings). The client already
+`app/src/components/stacking/`. Touch points in existing client code, kept
+minimal for the upstream PR: `app/src/router/routes.ts` (one route),
+`app/src/layouts/MainLayout.vue` (one navigation entry), and for bundling
+Pyodide (Step 4) `app/package.json` (the pinned `pyodide` dependency and a
+`postinstall` hook), `.gitignore`, and one ignore entry
+(`public/pyodide/**`) in `app/eslint.config.mjs` — third-party build output,
+like the `dist/**` and `src/generated/**` already listed there.
+
+**Python code for the Pyodide backend (decided in Step 4):** the browser runs
+the reference modules themselves, not a port. `tools/sync_client_python.py`
+copies them verbatim from `python/src/os3stack/` to the client's
+`app/src/stacking/compute/pyodide/os3stack/`; `--check` fails when the copy
+differs. The worker bundles them as text and writes them into Pyodide's file
+system. The only browser-specific Python is the client's
+`compute/pyodide/bridge.py` (pixels in, results out).
+
+**Pyodide, numpy and OpenCV are served with the client** (decided in Step 4),
+so the Stacking tab works without internet access: `scripts/fetch-pyodide.mjs`
+(run on `npm install`) copies Pyodide's core from the pinned npm package and
+downloads exactly the wheels needed from Pyodide's CDN, checked against the
+SHA-256 in Pyodide's lockfile, into `public/pyodide/v<version>/` (~26 MB). The
+browser loads them only when a run starts. The Python reference pins the same
+OpenCV version as that Pyodide release (`python/pyproject.toml`); move both
+together. The client already
 talks to OS3 through generated SDKs (`src/generated/api`) and
 `services/apiClient.ts`; the orchestrator uses those.
 
@@ -386,11 +407,28 @@ talks to OS3 through generated SDKs (`src/generated/api`) and
   differences are measured separately.
 - Merge tolerance: Step 2's targets (differing pixels < 0.5 %, mean absolute
   deviation < 0.01 of 255) against the reference, or against Step 4 for Step 5.
-- Calibration comparison: element-wise matrix deltas; tolerances are set in
-  Step 4.
-- JPEG decoder differences (libjpeg-turbo in OpenCV vs. browser decoders vs.
-  Pyodide's OpenCV build) count against the same tolerance budget. The reference
-  decodes with OpenCV.
+- Calibration tolerance (set in Step 4): for every focus step, the reference's
+  and the backend's matrix map each image corner to points less than
+  **0.05 px** apart.
+- End to end (each side calibrates itself): mean absolute deviation < 0.01 of
+  255. The share of differing pixels is reported but not a target here:
+  sub-pixel calibration differences shift the bilinear interpolation a hair
+  everywhere, and wherever two focus steps are almost equally sharp that tips
+  the per-pixel choice (measured in Step 4: 0.0125 px of matrix difference →
+  up to 9 % of pixels differing, mean 0.12 of 255).
+- **JPEG codec:** the reference decodes and encodes with OpenCV's
+  libjpeg-turbo. Pyodide's OpenCV build uses a different JPEG library (4.8 %
+  of pixels decode differently, up to 11 levels), so browser backends MUST NOT
+  use it for decoding or encoding. Chromium's own decoder
+  (`createImageBitmap` with `imageOrientation: 'from-image'`,
+  `colorSpaceConversion: 'none'`) gives exactly OpenCV's pixels, EXIF
+  orientation included, and its JPEG encoder at the same quality decodes to
+  exactly the pixels of `cv2.imencode` (the files differ: Chromium adds an
+  sRGB profile and optimised Huffman tables). Measured 2026-10-19 against
+  OpenCV 4.11.0.
+- Step 4 results (Pyodide 314.0.7, three real brackets of 4–10 photos,
+  1–3 MP): merge 0.008–0.38 % differing pixels, mean ≤ 0.005 of 255;
+  calibration ≤ 0.0125 px; EXIF orientations 3/6/8 decode identically.
 
 ## 9. Versioning
 

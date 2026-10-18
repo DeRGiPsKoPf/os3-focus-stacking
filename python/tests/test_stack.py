@@ -6,12 +6,36 @@ from os3stack.batches import Batch, find_image_batches
 from os3stack.calibrate import calibrate
 from os3stack.compare import compare_arrays
 from os3stack.imageio import load_image
-from os3stack.stack import stack_batch
+from os3stack.stack import merge_batch, stack_batch
 from os3stack.tiling import grid_plan
 
 
 def _identity_transforms(n: int) -> list[np.ndarray]:
     return [np.eye(2, 3, dtype=np.float32) for _ in range(n)]
+
+
+def test_injected_loader_gives_the_same_calibration_and_merge(scan_dir):
+    # The browser backend hands over pixels its own decoder produced instead
+    # of letting OpenCV read files; given the same pixels, the shared code
+    # must produce exactly the same matrices and merged image.
+    batch = find_image_batches(scan_dir)[0]
+    pixels = {str(image.path): load_image(str(image.path)) for image in batch.images}
+    loaded: list[str] = []
+
+    def load(key: str) -> np.ndarray:
+        loaded.append(key)
+        return pixels[key]
+
+    by_file = calibrate([batch])
+    by_loader = calibrate([batch], load=load)
+    for a, b in zip(by_file.transforms, by_loader.transforms):
+        np.testing.assert_array_equal(a, b)
+    assert set(loaded) == set(pixels)
+
+    np.testing.assert_array_equal(
+        merge_batch(batch, by_file.transforms),
+        merge_batch(batch, by_file.transforms, load=load),
+    )
 
 
 def test_stack_batch_result_is_close_to_the_sharpest_step(scan_dir, tmp_path):

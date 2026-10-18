@@ -575,6 +575,32 @@ the deferred calibration pre-scan: `leading` vs. `spread` calibration on a
 real 100-position scan (see Open decisions).
 **Risk:** whether the OpenCV package for Pyodide can do everything needed
 must be checked early.
+**Status (2026-10-19):** built and tested on real photos, not yet on a
+scanner. Pyodide 314.0.7's OpenCV 4.11 has everything `os3stack` uses,
+`findTransformECC` included. Decisions made on the way (spec §7/§8):
+- **Reference pinned to OpenCV 4.11.0.86** (= Pyodide's). OpenCV 5.0 merged
+  11–13 % of pixels differently from 4.11 on identical input (mean 0.15/255);
+  4.11 native vs. Pyodide differed in ≤ 0.012 %.
+- **Near bit-exact, JPEG in the browser:** Pyodide's OpenCV uses another JPEG
+  library than libjpeg-turbo; Chromium's decoder and encoder match OpenCV's
+  pixels exactly, so the worker decodes/encodes in the browser and Python only
+  computes. Rejected: Pyodide's `cv2.imread`/`imencode` (end to end 49–90 %
+  differing pixels, mean up to 1.6/255).
+- **Same code, not a port:** `os3stack` got an injectable image loader
+  (`calibrate(..., load=)`, `merge_batch(..., load=)`) and
+  `combine_batch_calibrations` (one batch decoded at a time);
+  `tools/sync_client_python.py` copies the modules into the client.
+- **Pyodide bundled with the client** (~26 MB, served by the Pi, loaded only
+  when a run starts), not from a CDN: works offline. Rejected: jsdelivr CDN
+  (needs internet in the browser).
+Results on three real brackets (4–10 photos, 1–3 MP): merge with identical
+matrices 0.008–0.38 % differing pixels (target < 0.5 %); own calibration
+≤ 0.0125 px from the reference's; about 9–14 s per run including Python's
+start, merge 0.5–2.9 s per position at 3 MP. Abort stops the worker within
+milliseconds. Still open: a real scanner (`.mjs`/`.wasm` MIME types from the
+Pi's nginx, live run, memory at 16 MP × 12 steps — the reference pre-warps
+every step, ~1.3 GB in WebAssembly), comparison with OS3's own output, and the
+`leading` vs. `spread` measurement.
 
 ### Step 4a — HTTPS on the Pi (upstream PR to `openscan3-system-config`)
 **Model:** Opus (touches someone else's system packaging)

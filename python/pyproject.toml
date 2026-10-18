@@ -12,9 +12,14 @@ requires-python = ">=3.11"
 # root). An SPDX expression here, not a file reference: setuptools refuses
 # to package a license file from outside this project's own directory.
 license = "GPL-3.0-only"
+# OpenCV is pinned to the exact version Pyodide ships (pyodide 314.0.7 ->
+# opencv-python 4.11.0.86), because every browser path is compared against
+# this reference: OpenCV 5.0 already merges ~11 % of pixels differently from
+# 4.11 on the same input (measured 2026-10-19). OS3 on the Pi uses a 4.x
+# system package too. Move this pin only together with the client's Pyodide.
 dependencies = [
   "numpy>=1.24",
-  "opencv-python-headless>=4.9",
+  "opencv-python-headless==4.11.0.86",
 ]
 
 [project.optional-dependencies]

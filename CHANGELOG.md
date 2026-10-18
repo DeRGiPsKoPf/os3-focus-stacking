@@ -44,9 +44,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OS3 stacking task needs them; still locked while compute is the mock.
 - Spec §5.4: optional `originalsDeletedAt` per run-file entry; a missing
   result whose originals are deleted is reported as lost, not re-stacked.
+- Step 4: `os3stack` image loading is injectable (`calibrate(..., load=)`,
+  `merge_batch`, `combine_batch_calibrations`), so the browser runs the same
+  code with its own decoder's pixels; `tools/sync_client_python.py` copies
+  the modules into the client (`--check` to verify).
+- Step 4 (client): Pyodide compute backend in a Web Worker, with Pyodide,
+  numpy and OpenCV bundled into the client.
+- Spec §7/§8: Python sync mechanism, bundled Pyodide, JPEG decoding/encoding
+  in the browser, calibration and end-to-end tolerances, Step 4 results.
 
 ### Changed
 
+- `python/`: OpenCV pinned to `opencv-python-headless==4.11.0.86`, the
+  version Pyodide 314.0.7 ships (was `>=4.9`, which installed 5.0).
 - Calibration pre-scan (`calibration-scan` policy) deferred out of Step 3a:
   live stacking calibrates from the first 3 positions only, until a
   `leading` vs. `spread` measurement shows the pre-scan is needed (spec §4.2,

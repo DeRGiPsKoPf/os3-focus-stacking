@@ -9,6 +9,7 @@ whatever batches it's given).
 from __future__ import annotations
 
 import datetime
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import cv2
@@ -17,6 +18,11 @@ import numpy as np
 from os3stack.batches import Batch
 from os3stack.core import DOWNSCALE, compute_alignment_transform, resize_to_gray
 from os3stack.imageio import load_image
+
+#: Returns the decoded BGR uint8 pixels of a `StackImage.path`. `load_image`
+#: (OpenCV's decoder) by default; the browser backend passes pixels its own
+#: decoder produced instead, so it runs this exact module unchanged.
+ImageLoader = Callable[[str], np.ndarray]
 
 #: OS3 version the algorithm in this module is ported from.
 OS3_ALGORITHM_VERSION = "0.13.0"
@@ -44,7 +50,9 @@ class CalibrationResult:
     failures: list[CalibrationFailure]
 
 
-def calibrate_batch(batch: Batch, downscale: float = DOWNSCALE) -> tuple[list[np.ndarray], list[CalibrationFailure]]:
+def calibrate_batch(
+    batch: Batch, downscale: float = DOWNSCALE, load: ImageLoader = load_image
+) -> tuple[list[np.ndarray], list[CalibrationFailure]]:
     """Align every image of one batch onto its reference image.
 
     Returns (transforms, failures); transforms[i] is the identity for
@@ -53,7 +61,7 @@ def calibrate_batch(batch: Batch, downscale: float = DOWNSCALE) -> tuple[list[np
     n = batch.stack_size
     reference_step = n // 2
 
-    ref_img = load_image(str(batch.images[reference_step].path))
+    ref_img = load(str(batch.images[reference_step].path))
     ref_gray_small = resize_to_gray(ref_img, downscale)
     ref_gray = cv2.boxFilter(ref_gray_small, -1, (5, 5))
 
@@ -63,7 +71,7 @@ def calibrate_batch(batch: Batch, downscale: float = DOWNSCALE) -> tuple[list[np
     for step in range(n):
         if step == reference_step:
             continue
-        img = load_image(str(batch.images[step].path))
+        img = load(str(batch.images[step].path))
         matrix, ok = compute_alignment_transform(img, ref_gray, downscale)
         transforms[step] = matrix
         if not ok:
@@ -76,7 +84,9 @@ def calibrate_batch(batch: Batch, downscale: float = DOWNSCALE) -> tuple[list[np
     return transforms, failures
 
 
-def calibrate(batches: list[Batch], downscale: float = DOWNSCALE) -> CalibrationResult:
+def calibrate(
+    batches: list[Batch], downscale: float = DOWNSCALE, load: ImageLoader = load_image
+) -> CalibrationResult:
     """Calibrate from one or more batches, averaging transforms element-wise
     across batches (OS3's `calibrate_multi` when len(batches) > 1)."""
     if not batches:
@@ -91,16 +101,28 @@ def calibrate(batches: list[Batch], downscale: float = DOWNSCALE) -> Calibration
                 f"position {batch.position} has {batch.stack_size}"
             )
 
-    reference_step = stack_size // 2
-    sample_img = load_image(str(batches[0].images[0].path))
+    sample_img = load(str(batches[0].images[0].path))
     height, width = sample_img.shape[:2]
+    return combine_batch_calibrations(
+        [calibrate_batch(batch, downscale, load) for batch in batches], width, height
+    )
 
-    per_batch_transforms: list[list[np.ndarray]] = []
-    all_failures: list[CalibrationFailure] = []
-    for batch in batches:
-        transforms, failures = calibrate_batch(batch, downscale)
-        per_batch_transforms.append(transforms)
-        all_failures.extend(failures)
+
+def combine_batch_calibrations(
+    per_batch: list[tuple[list[np.ndarray], list[CalibrationFailure]]],
+    width: int,
+    height: int,
+) -> CalibrationResult:
+    """Average `calibrate_batch` results element-wise (OS3's
+    `calibrate_multi`). Split out of `calibrate` so the browser backend can
+    calibrate one batch at a time — decoding only that batch's photos — and
+    still combine them with this same code."""
+    if not per_batch:
+        raise ValueError("combine_batch_calibrations() requires at least one batch")
+    per_batch_transforms = [transforms for transforms, _ in per_batch]
+    all_failures = [failure for _, failures in per_batch for failure in failures]
+    stack_size = len(per_batch_transforms[0])
+    reference_step = stack_size // 2
 
     averaged: list[np.ndarray] = []
     for step in range(stack_size):

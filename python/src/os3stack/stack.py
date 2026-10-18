@@ -56,6 +56,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from os3stack.batches import Batch
+from os3stack.calibrate import ImageLoader
 from os3stack.core import DOWNSCALE, apply_transform, compute_focus_map
 from os3stack.imageio import DEFAULT_JPEG_QUALITY, load_image, save_image
 from os3stack.tiling import UNTILED, TilePlan, compute_tiles
@@ -95,6 +96,23 @@ def stack_batch(
             bit-for-bit identical to untiled regardless of image size (see
             this module's docstring).
     """
+    result = merge_batch(batch, transforms, downscale, tile_plan)
+    save_image(output_path, result, jpeg_quality)
+    h, w = result.shape[:2]
+    return StackResult(position=batch.position, width=w, height=h, output_path=output_path)
+
+
+def merge_batch(
+    batch: Batch,
+    transforms: list[np.ndarray],
+    downscale: float = DOWNSCALE,
+    tile_plan: TilePlan | None = None,
+    load: ImageLoader = load_image,
+) -> np.ndarray:
+    """`stack_batch` without the file output: returns the merged BGR uint8
+    image. `load` decodes a `StackImage.path` (OpenCV by default); the
+    browser backend passes its own decoder's pixels and encodes the result
+    itself, so this function is the whole shared computation."""
     n = batch.stack_size
     if len(transforms) != n:
         raise ValueError(
@@ -104,18 +122,15 @@ def stack_batch(
     if n == 1:
         # Nothing to merge or tile: a single-image "stack" is just a
         # re-encode, exactly as in OS3.
-        img = load_image(str(batch.images[0].path))
-        save_image(output_path, img, jpeg_quality)
-        h, w = img.shape[:2]
-        return StackResult(position=batch.position, width=w, height=h, output_path=output_path)
+        return load(str(batch.images[0].path))
 
     reference_step = n // 2
-    ref_img = load_image(str(batch.images[reference_step].path))
+    ref_img = load(str(batch.images[reference_step].path))
     h, w = ref_img.shape[:2]
 
     # The reference frame needs no warp (its transform is the identity).
     aligned_by_step = {
-        step: apply_transform(load_image(str(batch.images[step].path)), transforms[step])
+        step: apply_transform(load(str(batch.images[step].path)), transforms[step])
         for step in range(n)
         if step != reference_step
     }
@@ -155,5 +170,4 @@ def stack_batch(
         oy1, ox1 = oy0 + (cy1 - cy0), ox0 + (cx1 - cx0)
         result[cy0:cy1, cx0:cx1] = result_sub[oy0:oy1, ox0:ox1]
 
-    save_image(output_path, result, jpeg_quality)
-    return StackResult(position=batch.position, width=w, height=h, output_path=output_path)
+    return result
